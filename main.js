@@ -10,11 +10,11 @@ class Vertex {
 }
 
 class Face {
-    constructor(vertices = []) {
+    constructor(vertices = [], layer = 0, isRecto = true) {
         this.vertices = vertices;
         this.id = generateUniqueId();
-        this.layer = 0;
-        this.isRecto = true;
+        this.layer = layer;
+        this.isRecto = isRecto;
     }
 }
 
@@ -226,63 +226,72 @@ function performFold() {
     saveState();
     updateUI();
 
-    const [l1, l2] = selectedVertices;
-    const midPoint = new Vertex((l1.x + l2.x) / 2, (l1.y + l2.y) / 2);
-    const perpendicularVector = new Vertex(-(l2.y - l1.y), l2.x - l1.x);
+    const [p1_mobile, p2_static] = selectedVertices;
 
-    const foldLineP1 = new Vertex(midPoint.x - perpendicularVector.x, midPoint.y - perpendicularVector.y);
-    const foldLineP2 = new Vertex(midPoint.x + perpendicularVector.x, midPoint.y + perpendicularVector.y);
+    // 1. Calculer la ligne de pli (médiatrice du segment [p1_mobile, p2_static])
+    const midPoint = new Vertex((p1_mobile.x + p2_static.x) / 2, (p1_mobile.y + p2_static.y) / 2);
+    const vec = new Vertex(p2_static.x - p1_mobile.x, p2_static.y - p1_mobile.y);
+    const perpendicularVec = new Vertex(-vec.y, vec.x); // Vecteur directeur de la médiatrice
+    const foldLineP1 = new Vertex(midPoint.x - perpendicularVec.x, midPoint.y - perpendicularVec.y);
+    const foldLineP2 = new Vertex(midPoint.x + perpendicularVec.x, midPoint.y + perpendicularVec.y);
+    
+    // 2. Déterminer de quel côté de la ligne de pli se trouve le point mobile (p1_mobile)
+    // C'est le côté qui sera déplacé.
+    const mobileSideSign = getLineSide(p1_mobile, foldLineP1, foldLineP2);
+    if (Math.abs(mobileSideSign) < 1e-9) { // Point sur la ligne, pli impossible
+        isFolding = false;
+        undoStack.pop(); // Annuler le saveState
+        updateHistory();
+        updateUI();
+        return;
+    }
 
     const newFaces = [];
     const newVertices = [];
-    const vertexIdMap = new Map();
+    const createdVertices = new Map();
 
     mesh.faces.forEach(face => {
         const poly = face.vertices;
         const polySides = poly.map(p => getLineSide(p, foldLineP1, foldLineP2));
 
-        if (polySides.every(s => Math.abs(s) < 1e-9) || (polySides.every(s => s >= -1e-9) && !polySides.some(s => s > 1e-9)) || (polySides.every(s => s <= 1e-9) && !polySides.some(s => s < -1e-9))) {
+        if (polySides.every(s => s * mobileSideSign >= -1e-9) || polySides.every(s => s * mobileSideSign <= 1e-9)) {
             newFaces.push(face);
             return;
         }
 
-        const newPoly1 = [];
-        const newPoly2 = [];
+        const mobileHalf = [];
+        const staticHalf = [];
 
         for (let i = 0; i < poly.length; i++) {
-            const p1 = poly[i];
-            const p2 = poly[(i + 1) % poly.length];
-            const s1 = polySides[i];
-            const s2 = polySides[(i + 1) % poly.length];
+            const currentPoint = poly[i];
+            const nextPoint = poly[(i + 1) % poly.length];
+            const currentSide = polySides[i];
+            const nextSide = polySides[(i + 1) % poly.length];
 
-            if (s1 >= -1e-9) newPoly1.push(p1);
-            if (s1 <= 1e-9) newPoly2.push(p1);
+            if (currentSide * mobileSideSign >= -1e-9) {
+                mobileHalf.push(currentPoint);
+            }
+            if (currentSide * mobileSideSign <= 1e-9) {
+                staticHalf.push(currentPoint);
+            }
 
-            if (s1 * s2 < 0) {
-                const intersection = getLineIntersection(p1, p2, foldLineP1, foldLineP2);
+            if (currentSide * nextSide < 0) {
+                const intersection = getLineIntersection(currentPoint, nextPoint, foldLineP1, foldLineP2);
                 if (intersection) {
-                    if (!vertexIdMap.has(intersection.id)) {
+                    const key = `${intersection.x.toFixed(5)},${intersection.y.toFixed(5)}`;
+                    if (!createdVertices.has(key)) {
+                        createdVertices.set(key, intersection);
                         newVertices.push(intersection);
-                        vertexIdMap.set(intersection.id, intersection);
                     }
-                    newPoly1.push(vertexIdMap.get(intersection.id));
-                    newPoly2.push(vertexIdMap.get(intersection.id));
+                    const sharedVertex = createdVertices.get(key);
+                    mobileHalf.push(sharedVertex);
+                    staticHalf.push(sharedVertex);
                 }
             }
         }
         
-        if (newPoly1.length > 2) {
-            const f1 = new Face(newPoly1);
-            f1.layer = face.layer;
-            f1.isRecto = face.isRecto;
-            newFaces.push(f1);
-        }
-        if (newPoly2.length > 2) {
-            const f2 = new Face(newPoly2);
-            f2.layer = face.layer;
-            f2.isRecto = face.isRecto;
-            newFaces.push(f2);
-        }
+        if (mobileHalf.length > 2) newFaces.push(new Face(mobileHalf, face.layer, face.isRecto));
+        if (staticHalf.length > 2) newFaces.push(new Face(staticHalf, face.layer, face.isRecto));
     });
 
     mesh.faces = newFaces;
@@ -292,69 +301,38 @@ function performFold() {
     mesh.faces.forEach(face => {
         const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
         const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
-        if (getLineSide({x: centroidX, y: centroidY}, l1, l2) > 0) {
+        if (getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2) * mobileSideSign > 1e-9) {
             mobileFaces.push(face);
         }
     });
-    
-    render();
 
+    // 3. Appliquer la réflexion à tous les points du côté mobile
     const highestLayer = mesh.faces.length > 0 ? Math.max(...mesh.faces.map(f => f.layer)) : 0;
     
-    mobileFaces.forEach(face => {
-        const polygon = svg.querySelector(`[data-face-id="${face.id}"]`);
-        if (polygon) {
-            const axisVec = { x: foldLineP2.x - foldLineP1.x, y: foldLineP2.y - foldLineP1.y };
-            polygon.style.transformOrigin = `${foldLineP1.x}px ${foldLineP1.y}px`;
-            polygon.style.transition = 'transform 1s ease-in-out';
-            polygon.style.transform = `rotate3d(0, 0, 1, 0)`; // Dummy, will be set by JS
-            
-            let start = null;
-            const animate = (timestamp) => {
-                if (!start) start = timestamp;
-                const progress = Math.min((timestamp - start) / 1000, 1);
-                const angle = 180 * progress;
-                 polygon.style.transform = `translate(${l1.x}px, ${l1.y}px) rotate(${angle}deg) translate(${-l1.x}px, ${-l1.y}px)`;
-                polygon.style.transform = `rotate3d(${axisVec.y}, ${-axisVec.x}, 0, ${angle}deg)`;
+    const A = foldLineP2.y - foldLineP1.y;
+    const B = foldLineP1.x - foldLineP2.x;
+    const C = -A * foldLineP1.x - B * foldLineP1.y;
+    const mobileVertices = new Set();
+    mobileFaces.forEach(f => f.vertices.forEach(v => mobileVertices.add(v)));
+    
+    mobileVertices.forEach(v => {
+        const den = A * A + B * B;
+        if (den < 1e-9) return;
+        const d = 2 * (A * v.x + B * v.y + C) / den;
+        v.x -= d * A;
+        v.y -= d * B;
+    });
 
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                }
-            };
-            requestAnimationFrame(animate);
-        }
+    mobileFaces.forEach(face => {
+        face.layer = highestLayer + 1;
+        face.isRecto = !face.isRecto;
     });
     
-    setTimeout(() => {
-        const mobileVertices = new Set();
-        mobileFaces.forEach(f => f.vertices.forEach(v => {
-            if (getLineSide(v, l1, l2) > 1e-9) mobileVertices.add(v);
-        }));
-        
-        mobileVertices.forEach(v => {
-            const p = {x: v.x, y: v.y};
-            const p_reflected = {
-                x: l2.x - l1.x,
-                y: l2.y - l1.y
-            };
-            const dot = (p.x - l1.x) * p_reflected.x + (p.y - l1.y) * p_reflected.y;
-            const len_sq = p_reflected.x**2 + p_reflected.y**2;
-            const t = dot / len_sq;
-            const proj = {x: l1.x + t * p_reflected.x, y: l1.y + t * p_reflected.y};
-            v.x = 2 * proj.x - v.x;
-            v.y = 2 * proj.y - v.y;
-        });
-
-        mobileFaces.forEach(face => {
-            face.layer = highestLayer + 1 + face.layer;
-            face.isRecto = !face.isRecto;
-        });
-        
-        mesh.creases.push({p1: foldLineP1, p2: foldLineP2});
-        selectedVertices = [];
-        isFolding = false;
-        render();
-    }, 1000);
+    mesh.creases.push({p1: foldLineP1, p2: foldLineP2});
+    selectedVertices = [];
+    isFolding = false;
+    
+    render();
 }
 
 function undo() {
