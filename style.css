@@ -4,10 +4,20 @@
     --text-color: #e0e0e0;
     --border-color: #444;
     --primary-color: #00aaff;
+    --highlight-color: #ffaa00;
+
     --recto-color: #f0f0f0;
     --verso-color: #a0a0a0;
     --crease-color: #888888;
-    --highlight-color: #ffaa00;
+    
+    --disabled-bg: #555;
+    --disabled-border: #555;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
 body {
@@ -16,92 +26,104 @@ body {
     color: var(--text-color);
     margin: 0;
     overflow: hidden;
+    height: 100vh;
+}
+
+h4, p {
+    margin-top: 0;
+}
+
+body {
     display: grid;
     grid-template-areas:
         "toolbar-left actions-top info-panel"
         "toolbar-left canvas-container history-panel"
         "toolbar-left canvas-container history-panel";
     grid-template-columns: 200px 1fr 200px;
-    grid-template-rows: auto 1fr auto;
-    height: 100vh;
+    grid-template-rows: auto 1fr;
+}
+
+#canvas-container { grid-area: canvas-container; }
+#actions-top { grid-area: actions-top; }
+#toolbar-left { grid-area: toolbar-left; }
+#info-panel { grid-area: info-panel; }
+#history-panel { grid-area: history-panel; }
+
+
+header, nav, aside {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    padding: 15px;
 }
 
 #canvas-container {
-    grid-area: canvas-container;
     background-color: #333;
     overflow: hidden;
     position: relative;
 }
 
-#origami-svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-header, nav, aside {
-    background-color: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    padding: 10px;
-}
-
 #actions-top {
-    grid-area: actions-top;
     display: flex;
     justify-content: center;
     gap: 10px;
     border-bottom: none;
+    padding: 10px;
 }
 
-#toolbar-left {
-    grid-area: toolbar-left;
-    border-right: none;
+#toolbar-left, #info-panel, #history-panel {
     display: flex;
     flex-direction: column;
     gap: 15px;
 }
 
-#info-panel {
-    grid-area: info-panel;
-    border-left: none;
-}
+#toolbar-left { border-right: none; }
+#info-panel { border-left: none; }
+#history-panel { border-left: none; overflow-y: auto; }
 
-#history-panel {
-    grid-area: history-panel;
-    border-left: none;
-    overflow-y: auto;
+#tool-info {
+    border-top: 1px solid var(--border-color);
+    padding-top: 15px;
+    font-size: 12px;
 }
 
 button {
-    background-color: var(--primary-color);
-    border: 1px solid var(--primary-color);
-    color: white;
     padding: 10px 15px;
-    cursor: pointer;
     font-size: 14px;
-    transition: background-color 0.2s;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid var(--primary-color);
+    background-color: var(--primary-color);
+    color: white;
+    transition: background-color 0.2s, border-color 0.2s;
     width: 100%;
 }
 
 button:hover {
     background-color: #0088cc;
+    border-color: #0088cc;
 }
 
 button:disabled {
-    background-color: #555;
-    border-color: #555;
+    background-color: var(--disabled-bg);
+    border-color: var(--disabled-border);
     cursor: not-allowed;
 }
 
 .tool-button {
     background-color: transparent;
-    border: 1px solid var(--primary-color);
     color: var(--primary-color);
 }
 
-.tool-button.active, .tool-button:hover {
+.tool-button.active,
+.tool-button:hover {
     background-color: var(--primary-color);
     color: white;
+}
+
+.tool-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
 #history-list {
@@ -112,21 +134,33 @@ button:disabled {
 
 #history-list li {
     padding: 5px;
+    font-size: 13px;
     border-bottom: 1px solid var(--border-color);
 }
 
-#tool-info {
+#history-list li:first-child {
     border-top: 1px solid var(--border-color);
-    padding-top: 15px;
-    font-size: 12px;
 }
 
-.recto {
-    fill: var(--recto-color);
+#origami-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
-.verso {
-    fill: var(--verso-color);
+svg polygon {
+    stroke: var(--bg-color);
+    stroke-width: 0.5px;
+    transition: fill 0.3s ease;
+}
+
+svg .recto { fill: var(--recto-color); }
+svg .verso { fill: var(--verso-color); }
+
+svg .crease {
+    stroke: var(--crease-color);
+    stroke-width: 1px;
+    pointer-events: none;
 }
 
 svg .vertex-handle {
@@ -134,24 +168,15 @@ svg .vertex-handle {
     stroke: var(--bg-color);
     stroke-width: 2px;
     cursor: pointer;
-    transition: fill 0.2s, stroke-width 0.2s;
+    transition: fill 0.2s, r 0.2s;
+    r: 6;
 }
 
 svg .vertex-handle:hover {
-    stroke-width: 4px;
+    r: 8;
 }
 
 svg .vertex-handle.selected {
     fill: var(--highlight-color);
-    stroke-width: 4px;
-}
-
-svg .crease {
-    stroke: var(--crease-color);
-    stroke-width: 1px;
-}
-
-svg polygon {
-    stroke: #333;
-    stroke-width: 0.5;
+    r: 8;
 }
