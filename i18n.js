@@ -66,10 +66,17 @@ export const translations = {
 		errorMobilePointOnFoldLine: "Le point mobile est sur la ligne de pli, pliage impossible.",
 		errorInvalidFold: "Les points sélectionnés ne permettent pas de créer un pli valide.",
 		errorAxiom6NotImplemented: "L'axiome 6 n'est pas implémenté.",
+		errorFoldOnEdge: "Il est interdit de plier le long d'un bord de la feuille.",
 
 		historyInit: "Initialisation",
 		historyFold: "Pli {{axiomName}}",
 		historyFlip: "Retourner la feuille",
+		historyAddPoint: "Ajout d'un point",
+
+		addPointTool: "Ajouter Point",
+		addPointToolName: "Outil d'Ajout de Point",
+		addPointToolDesc: "Ajoute un nouveau point de construction sur le papier.<br><strong>Astuce :</strong> Maintenez la touche SHIFT enfoncée pour désactiver temporairement le magnétisme.",
+		addPointToolPrompt1: "Cliquez sur la feuille pour ajouter un point.",
 	},
 	en: {
 		toolHeader: "Folding Tools",
@@ -138,9 +145,16 @@ export const translations = {
 		errorMobilePointOnFoldLine: "The mobile point is on the fold line, folding is impossible.",
 		errorInvalidFold: "The selected points do not allow for a valid fold.",
 		errorAxiom6NotImplemented: "Axiom 6 is not implemented.",
+		errorFoldOnEdge: "Folding along a paper edge is not allowed.",
 
 		historyInit: "Initialization",
 		historyFold: "{{axiomName}} Fold",
 		historyFlip: "Flip Paper",
+		historyAddPoint: "Add Point",
+
+		addPointTool: "Add Point",
+		addPointToolName: "Add Point Tool",
+		addPointToolDesc: "Adds a new construction point to the paper.<br><strong>Tip:</strong> Hold down the SHIFT key to temporarily disable snapping.",
+		addPointToolPrompt1: "Click on the paper to add a point.",
 	}
 };
