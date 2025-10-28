@@ -12,6 +12,8 @@
 	
 	--disabled-bg: #555;
 	--disabled-border: #555;
+	
+	--error-color: #ff6b6b;
 }
 
 *,
@@ -27,20 +29,17 @@ body {
 	margin: 0;
 	overflow: hidden;
 	height: 100vh;
+	display: grid;
+	grid-template-columns: 200px 1fr 200px;
+	grid-template-rows: 80px auto 1fr;
+	grid-template-areas:
+		"toolbar-left actions-top info-panel"
+		"toolbar-left canvas-container info-panel"
+		"toolbar-left canvas-container history-panel";
 }
 
 h4, p {
 	margin-top: 0;
-}
-
-body {
-	display: grid;
-	grid-template-areas:
-		"toolbar-left actions-top info-panel"
-		"toolbar-left canvas-container history-panel"
-		"toolbar-left canvas-container history-panel";
-	grid-template-columns: 200px 1fr 200px;
-	grid-template-rows: auto 1fr;
 }
 
 #canvas-container { grid-area: canvas-container; }
@@ -67,6 +66,8 @@ header, nav, aside {
 	gap: 10px;
 	border-bottom: none;
 	padding: 10px;
+	height: 80px;
+	align-self: start;
 }
 
 #toolbar-left, #info-panel, #history-panel {
@@ -95,6 +96,13 @@ button {
 	color: white;
 	transition: background-color 0.2s, border-color 0.2s;
 	width: 100%;
+}
+
+#actions-top button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
 }
 
 button:hover {
@@ -251,4 +259,64 @@ svg .selection-label {
 	dominant-baseline: central;
 	pointer-events: none;
 	font-weight: bold;
+}
+
+#error-console {
+	margin-top: auto;
+	border-top: 1px solid var(--border-color);
+	padding-top: 15px;
+}
+
+#error-message {
+	color: var(--error-color);
+	font-size: 12px;
+	margin: 0;
+	min-height: 2.5em;
+	word-wrap: break-word;
+}
+
+#info-content h5 {
+	margin-bottom: 8px;
+	font-size: 14px;
+	border-bottom: 1px solid var(--border-color);
+	padding-bottom: 5px;
+}
+
+#info-content .stats-header {
+	margin-top: 20px;
+}
+
+.info-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 0;
+	font-size: 13px;
+}
+
+.info-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: #bbb;
+}
+
+.info-value {
+	font-weight: bold;
+}
+
+.progress-bar-container {
+	height: 8px;
+	background-color: var(--bg-color);
+	border-radius: 4px;
+	overflow: hidden;
+	border: 1px solid var(--border-color);
+}
+
+#selection-progress-bar {
+	height: 100%;
+	width: 0%;
+	background-color: var(--primary-color);
+	border-radius: 4px;
+	transition: width 0.3s ease;
 }

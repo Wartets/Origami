@@ -312,8 +312,7 @@ const FoldEngine = {
 		const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
 
 		if (Math.abs(mobileSideSign) < EPSILON) {
-			console.warn("Le point mobile est sur la ligne de pli, pliage impossible.");
-			return null;
+			return { mesh: null, error: "Le point mobile est sur la ligne de pli, pliage impossible." };
 		}
 
 		const newMesh = new Mesh();
@@ -397,7 +396,7 @@ const FoldEngine = {
 		});
 
 		newMesh.creases = [...mesh.creases, foldLine];
-		return newMesh;
+		return { mesh: newMesh, error: null };
 	}
 };
 
@@ -508,7 +507,9 @@ const UI = {
 			vertexCountEl: document.getElementById('vertex-count'),
 			historyListEl: document.getElementById('history-list'),
 			currentToolNameEl: document.getElementById('current-tool-name'),
-			currentToolDescEl: document.getElementById('current-tool-desc')
+			currentToolDescEl: document.getElementById('current-tool-desc'),
+			errorMessageEl: document.getElementById('error-message'),
+			selectionProgressBar: document.getElementById('selection-progress-bar')
 		};
 		
 		this.elements.svg.addEventListener('click', (e) => controller.handleSVGClick(e));
@@ -542,7 +543,7 @@ const UI = {
 
 		const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
 		defs.innerHTML = `
-			<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+			<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
 				<polygon points="0 0, 10 3.5, 0 7" fill="${getComputedStyle(document.documentElement).getPropertyValue('--highlight-color')}" />
 			</marker>
 		`;
@@ -741,12 +742,28 @@ const UI = {
 			this.elements.axiomButtons[axiomId].classList.toggle('active', axiomId === currentAxiom);
 		}
 
+		const progressPercentage = axiomInfo.requiredPoints > 0 ? (selectedVertices.length / axiomInfo.requiredPoints) * 100 : 0;
+		this.elements.selectionProgressBar.style.width = `${progressPercentage}%`;
+
 		this.elements.historyListEl.innerHTML = '';
 		history.slice(1, historyIndex + 1).forEach((histItem, index) => {
 			const li = document.createElement('li');
 			li.textContent = `${index + 1}: ${histItem.action}`;
 			this.elements.historyListEl.appendChild(li);
 		});
+	},
+	
+	displayError(message, duration = 5000) {
+		if (!this.elements.errorMessageEl) return;
+		this.elements.errorMessageEl.textContent = message || '';
+		
+		if (message) {
+			setTimeout(() => {
+				if (this.elements.errorMessageEl.textContent === message) {
+					this.elements.errorMessageEl.textContent = '';
+				}
+			}, duration);
+		}
 	}
 };
 
@@ -811,6 +828,7 @@ const AppController = {
 
 	handleSVGClick(event) {
 		if (AppState.isProcessing || AppState.dragOccurred) return;
+		UI.displayError('');
 		
 		const targetClassList = event.target.classList;
 
@@ -837,12 +855,17 @@ const AppController = {
 		const axiom = AXIOMS[AppState.currentAxiom];
 		if (AppState.isProcessing || AppState.selectedVertices.length !== axiom.requiredPoints) return;
 		
+		if (AppState.currentAxiom === 'AXIOM_6') {
+			UI.displayError("L'axiome 6 n'est pas implémenté.", 10000);
+			return;
+		}
+
 		AppState.isProcessing = true;
 		UI.render(AppState);
 		
 		const foldLine = axiom.getFoldLine(AppState.selectedVertices);
 		if (!foldLine) {
-			console.error("Impossible de générer la ligne de pli.");
+			UI.displayError("Les points sélectionnés ne permettent pas de créer un pli valide.");
 			AppState.isProcessing = false;
 			UI.render(AppState);
 			return;
@@ -871,14 +894,17 @@ const AppController = {
 				break;
 		}
 		
-		const newMesh = FoldEngine.performFold(AppState.mesh, foldLine, mobilePoint);
+		const foldResult = FoldEngine.performFold(AppState.mesh, foldLine, mobilePoint);
 		
-		if (newMesh) {
-			AppState.mesh = newMesh;
+		if (foldResult.mesh) {
+			UI.displayError('');
+			AppState.mesh = foldResult.mesh;
 			const action = `Pli ${AXIOMS[AppState.currentAxiom].name}`;
 			AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
 			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: action });
 			AppState.historyIndex++;
+		} else if (foldResult.error) {
+			UI.displayError(foldResult.error);
 		}
 
 		AppState.clearSelection();
@@ -953,6 +979,7 @@ const AppController = {
 		if (AppState.isProcessing) return;
 		AppState.currentAxiom = axiomId;
 		AppState.clearSelection();
+		UI.displayError('');
 		UI.render(AppState);
 	}
 };
