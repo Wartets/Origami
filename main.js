@@ -1,6 +1,7 @@
 // SECTION: DATA CLASSES
 let uniqueIdCounter = 0;
 const generateUniqueId = () => `id_${uniqueIdCounter++}`;
+const EPSILON = 1e-9;
 
 class Vertex {
 	constructor(x, y) {
@@ -61,11 +62,11 @@ const GEOMETRY = {
 
 	getLineIntersection(p1, p2, p3, p4) {
 		const den = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
-		if (Math.abs(den) < 1e-9) return null;
+		if (Math.abs(den) < EPSILON) return null;
 		const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / den;
 		const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / den;
 		
-		if (t >= -1e-9 && t <= 1 + 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) {
+		if (t >= -EPSILON && t <= 1 + EPSILON && isFinite(u)) {
 			return new Vertex(p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y));
 		}
 		return null;
@@ -76,7 +77,7 @@ const GEOMETRY = {
 		const B = lineP1.x - lineP2.x;
 		const C = -A * lineP1.x - B * lineP1.y;
 		const den = A * A + B * B;
-		if (den < 1e-9) return new Vertex(point.x, point.y);
+		if (den < EPSILON) return new Vertex(point.x, point.y);
 
 		const d = 2 * (A * point.x + B * point.y + C) / den;
 		return new Vertex(point.x - d * A, point.y - d * B);
@@ -95,21 +96,25 @@ const GEOMETRY = {
 
 		const d1 = Math.sqrt(l1.A * l1.A + l1.B * l1.B);
 		const d2 = Math.sqrt(l2.A * l2.A + l2.B * l2.B);
-		if (d1 < 1e-9 || d2 < 1e-9) return [];
+		if (d1 < EPSILON || d2 < EPSILON) return [];
 
 		const l1n = { A: l1.A / d1, B: l1.B / d1, C: l1.C / d1 };
 		const l2n = { A: l2.A / d2, B: l2.B / d2, C: l2.C / d2 };
 
 		const createLine = (A, B, C) => {
-			if (Math.abs(A) < 1e-9 && Math.abs(B) < 1e-9) return null;
+			if (Math.abs(A) < EPSILON && Math.abs(B) < EPSILON) return null;
 			const dir = { x: -B, y: A };
-			const p0 = Math.abs(B) > 1e-9 ? new Vertex(0, -C / B) : new Vertex(-C / A, 0);
+			const p0 = Math.abs(B) > EPSILON ? new Vertex(0, -C / B) : new Vertex(-C / A, 0);
 			const p1 = new Vertex(p0.x - dir.x * 1000, p0.y - dir.y * 1000);
 			const p2 = new Vertex(p0.x + dir.x * 1000, p0.y + dir.y * 1000);
 			return { p1, p2 };
 		};
 		
-		if (Math.abs(l1n.A * l2n.B - l1n.B * l2n.A) < 1e-9) {
+		if (Math.abs(l1n.A * l2n.B - l1n.B * l2n.A) < EPSILON) {
+			const dist = Math.abs(l2n.A * l1_p1.x + l2n.B * l1_p1.y + l2n.C);
+			if (dist < EPSILON) {
+				return []; 
+			}
 			if (l1n.A * l2n.A < 0 || l1n.B * l2n.B < 0) {
 				l2n.A = -l2n.A; l2n.B = -l2n.B; l2n.C = -l2n.C;
 			}
@@ -137,20 +142,20 @@ const GEOMETRY = {
 		const c = f.x * f.x + f.y * f.y - radius * radius;
 
 		let discriminant = b * b - 4 * a * c;
-		if (discriminant < 1e-9) {
+		if (discriminant < 0) {
 			return [];
 		}
 		
+		if (discriminant < EPSILON) discriminant = 0;
+
 		discriminant = Math.sqrt(discriminant);
 		const t1 = (-b - discriminant) / (2 * a);
 		const t2 = (-b + discriminant) / (2 * a);
 
-		const solutions = [
-			new Vertex(lineP1.x + t1 * d.x, lineP1.y + t1 * d.y),
-			new Vertex(lineP1.x + t2 * d.x, lineP1.y + t2 * d.y)
-		];
-		
-		if (Math.abs(discriminant) < 1e-9) solutions.pop();
+		const solutions = [];
+		if (isFinite(t1)) solutions.push(new Vertex(lineP1.x + t1 * d.x, lineP1.y + t1 * d.y));
+		if (isFinite(t2) && Math.abs(discriminant) > EPSILON) solutions.push(new Vertex(lineP1.x + t2 * d.x, lineP1.y + t2 * d.y));
+
 		return solutions;
 	}
 };
@@ -159,12 +164,15 @@ const GEOMETRY = {
 const AXIOMS = {
 	'AXIOM_1': {
 		name: 'Axiome 1',
-		desc: 'Plier par une ligne passant par deux points.',
+		desc: 'Crée un pli passant par deux points existants P1 et P2.<br><strong>Mathématiquement :</strong> Définit une ligne unique dans le plan euclidien.',
 		requiredPoints: 2,
-		prompts: [
-			'Sélectionnez le premier point.',
-			'Sélectionnez le second point pour définir la ligne de pli.'
-		],
+		prompts: (selected) => {
+			switch (selected.length) {
+				case 0: return 'Sélectionnez le premier point (P1).';
+				case 1: return 'Sélectionnez le second point (P2) pour définir la ligne de pli.';
+				default: return 'Prêt à plier.';
+			}
+		},
 		getFoldLine: (points) => {
 			const [p1, p2] = points;
 			if (GEOMETRY.distSq(p1, p2) < 1e-9) return null;
@@ -176,14 +184,18 @@ const AXIOMS = {
 	},
 	'AXIOM_2': {
 		name: 'Axiome 2',
-		desc: 'Plier un point sur un autre. L\'ordre de sélection détermine le côté mobile.',
+		desc: 'Amène un point P1 sur un point P2.<br><strong>Mathématiquement :</strong> Le pli est la médiatrice du segment [P1, P2].',
 		requiredPoints: 2,
-		prompts: [
-			'Sélectionnez le point à déplacer.',
-			'Sélectionnez le point de destination.'
-		],
+		prompts: (selected) => {
+			switch (selected.length) {
+				case 0: return 'Sélectionnez le point à déplacer (P1).';
+				case 1: return 'Sélectionnez le point de destination (P2).';
+				default: return 'P1 sera plié sur P2.';
+			}
+		},
 		getFoldLine: (points) => {
 			const [p1, p2] = points;
+			if (GEOMETRY.distSq(p1, p2) < EPSILON) return null;
 			const midPoint = new Vertex((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
 			const vec = new Vertex(p2.x - p1.x, p2.y - p1.y);
 			const perpendicularVec = new Vertex(-vec.y, vec.x);
@@ -195,16 +207,21 @@ const AXIOMS = {
 	},
 	'AXIOM_3': {
 		name: 'Axiome 3',
-		desc: 'Plier une ligne sur une autre (sélectionner 2 pts ou une arête par ligne).',
+		desc: 'Superpose deux lignes L1 et L2.<br><strong>Mathématiquement :</strong> Le pli est la bissectrice de l\'angle formé par L1 et L2.',
 		requiredPoints: 4,
-		prompts: [
-			'Sélectionnez le premier point de la Ligne 1 (ou une arête).',
-			'Sélectionnez le second point de la Ligne 1.',
-			'Sélectionnez le premier point de la Ligne 2 (ou une arête).',
-			'Sélectionnez le second point de la Ligne 2.'
-		],
+		prompts: (selected) => {
+			switch (selected.length) {
+				case 0: return 'Sélectionnez le premier point de la Ligne 1 (ou une arête).';
+				case 1: return 'Sélectionnez le second point de la Ligne 1.';
+				case 2: return 'Ligne 1 définie. Sélectionnez le premier point de la Ligne 2 (ou une arête).';
+				case 3: return 'Sélectionnez le second point de la Ligne 2.';
+				default: return 'L1 sera pliée sur L2.';
+			}
+		},
 		getFoldLine: (points) => {
 			const [l1p1, l1p2, l2p1, l2p2] = points;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON || GEOMETRY.distSq(l2p1, l2p2) < EPSILON) return null;
+
 			const bisectors = GEOMETRY.getAngleBisector(l1p1, l1p2, l2p1, l2p2);
 			if (bisectors.length === 0) return null;
 
@@ -212,7 +229,7 @@ const AXIOMS = {
 			const side1 = GEOMETRY.getLineSide(l1p1, bisector.p1, bisector.p2);
 			const side2 = GEOMETRY.getLineSide(l2p1, bisector.p1, bisector.p2);
 			
-			if (side1 * side2 > 1e-9 && bisectors.length > 1) {
+			if (side1 * side2 > EPSILON && bisectors.length > 1) {
 				return bisectors[1];
 			}
 			return bisector;
@@ -220,15 +237,19 @@ const AXIOMS = {
 	},
 	'AXIOM_4': {
 		name: 'Axiome 4',
-		desc: 'Plier une ligne perpendiculairement à une autre, passant par un point.',
+		desc: 'Crée un pli passant par un point P et perpendiculaire à une ligne L.<br><strong>Mathématiquement :</strong> Le vecteur directeur du pli est orthogonal au vecteur directeur de L.',
 		requiredPoints: 3,
-		prompts: [
-			'Sélectionnez le premier point de la ligne (ou une arête).',
-			'Sélectionnez le second point de la ligne.',
-			'Sélectionnez le point par lequel la pliure doit passer.'
-		],
+		prompts: (selected) => {
+			switch (selected.length) {
+				case 0: return 'Sélectionnez le premier point de la ligne L (ou une arête).';
+				case 1: return 'Sélectionnez le second point de la ligne L.';
+				case 2: return 'Ligne L définie. Sélectionnez le point P par lequel le pli doit passer.';
+				default: return 'Pli perpendiculaire à L passant par P.';
+			}
+		},
 		getFoldLine: (points) => {
 			const [l1p1, l1p2, p3] = points;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON) return null;
 			const vec = new Vertex(l1p2.x - l1p1.x, l1p2.y - l1p1.y);
 			const pVec = new Vertex(-vec.y, vec.x);
 			const pA = new Vertex(p3.x - pVec.x * 1000, p3.y - pVec.y * 1000);
@@ -238,23 +259,30 @@ const AXIOMS = {
 	},
 	'AXIOM_5': {
 		name: 'Axiome 5',
-		desc: 'Plier pour amener P2 sur la ligne L1, le long d\'une pliure passant par P1.',
+		desc: 'Crée un pli passant par P1 qui amène un point P2 sur une ligne L.<br><strong>Mathématiquement :</strong> Le point P2\' (destination de P2 sur L) est à l\'intersection de L et du cercle de centre P1 et de rayon |P1P2|. Le pli est la médiatrice de [P2, P2\'].',
 		requiredPoints: 4,
-		prompts: [
-			'Sélectionnez le point P1 (pivot de la pliure).',
-			'Sélectionnez le point P2 (à amener sur la ligne L1).',
-			'Sélectionnez le premier point de la ligne L1 (ou une arête).',
-			'Sélectionnez le second point de la ligne L1.'
-		],
+		prompts: (selected) => {
+			switch (selected.length) {
+				case 0: return 'Sélectionnez P1 (le pivot du pli).';
+				case 1: return 'Sélectionnez P2 (le point à amener sur la ligne L).';
+				case 2: return 'Points P1 et P2 définis. Sélectionnez le premier point de la ligne L (ou une arête).';
+				case 3: return 'Sélectionnez le second point de la ligne L.';
+				default: return 'Amène P2 sur L par un pli passant par P1.';
+			}
+		},
 		getFoldLine: (points) => {
 			const [p1, p2, l1p1, l1p2] = points;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON) return null;
+
 			const radius = Math.sqrt(GEOMETRY.distSq(p1, p2));
-			if (radius < 1e-9) return null;
+			if (radius < EPSILON) return null;
 
 			const intersections = GEOMETRY.getLineCircleIntersection(l1p1, l1p2, p1, radius);
-			if (intersections.length === 0) return null;
+			const validIntersections = intersections.filter(p => GEOMETRY.distSq(p, p2) > EPSILON);
+
+			if (validIntersections.length === 0) return null;
 			
-			const p2prime = intersections[0];
+			const p2prime = validIntersections[0];
 
 			const midPoint = new Vertex((p2.x + p2prime.x) / 2, (p2.y + p2prime.y) / 2);
 			const vec = new Vertex(p2prime.x - p2.x, p2prime.y - p2.y);
@@ -267,9 +295,9 @@ const AXIOMS = {
 	},
 	'AXIOM_6': {
 		name: 'Axiome 6',
-		desc: 'Plier pour amener P1 sur L1 et P2 sur L2 (non implémenté).',
+		desc: 'Amène P1 sur L1 et P2 sur L2. Non implémenté.<br><strong>Mathématiquement :</strong> Le pli est une tangente commune à deux paraboles. La recherche de cette tangente revient à résoudre une équation du troisième degré.',
 		requiredPoints: 6,
-		prompts: [ 'Non implémenté.' ],
+		prompts: (selected) => 'Cet axiome n\'est pas implémenté.',
 		getFoldLine: (points) => {
 			console.warn("Axiome 6 n'est pas implémenté en raison de sa complexité géométrique.");
 			return null;
@@ -283,7 +311,7 @@ const FoldEngine = {
 		const { p1: foldLineP1, p2: foldLineP2 } = foldLine;
 		const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
 
-		if (Math.abs(mobileSideSign) < 1e-9) {
+		if (Math.abs(mobileSideSign) < EPSILON) {
 			console.warn("Le point mobile est sur la ligne de pli, pliage impossible.");
 			return null;
 		}
@@ -295,8 +323,8 @@ const FoldEngine = {
 			const poly = face.vertices;
 			const polySides = poly.map(p => GEOMETRY.getLineSide(p, foldLineP1, foldLineP2));
 			
-			if (polySides.every(s => Math.sign(s) === Math.sign(mobileSideSign) || Math.abs(s) < 1e-9) || 
-				polySides.every(s => Math.sign(s) !== Math.sign(mobileSideSign) || Math.abs(s) < 1e-9)) {
+			if (polySides.every(s => Math.sign(s) === Math.sign(mobileSideSign) || Math.abs(s) < EPSILON) || 
+				polySides.every(s => Math.sign(s) !== Math.sign(mobileSideSign) || Math.abs(s) < EPSILON)) {
 				return [new Face([...face.vertices], face.layer, face.isRecto)];
 			}
 			
@@ -308,8 +336,8 @@ const FoldEngine = {
 				const currentSide = polySides[i];
 				const nextSide = polySides[(i + 1) % poly.length];
 
-				if (currentSide >= 0) newPoly1.push(currentPoint);
-				if (currentSide <= 0) newPoly2.push(currentPoint);
+				if (currentSide * mobileSideSign >= 0) newPoly1.push(currentPoint);
+				else newPoly2.push(currentPoint);
 
 				if (currentSide * nextSide < 0) {
 					const intersection = GEOMETRY.getLineIntersection(currentPoint, nextPoint, foldLineP1, foldLineP2);
@@ -325,9 +353,17 @@ const FoldEngine = {
 				}
 			}
 
+			const fixPolygonOrder = (poly, refPoint) => {
+				if (poly.length < 3) return poly;
+				let cx = 0; let cy = 0;
+				poly.forEach(p => { cx += p.x; cy += p.y; });
+				cx /= poly.length; cy /= poly.length;
+				return poly.sort((a,b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+			};
+
 			const resultingFaces = [];
-			if (newPoly1.length > 2) resultingFaces.push(new Face(newPoly1, face.layer, face.isRecto));
-			if (newPoly2.length > 2) resultingFaces.push(new Face(newPoly2, face.layer, face.isRecto));
+			if (newPoly1.length > 2) resultingFaces.push(new Face(fixPolygonOrder(newPoly1), face.layer, face.isRecto));
+			if (newPoly2.length > 2) resultingFaces.push(new Face(fixPolygonOrder(newPoly2), face.layer, face.isRecto));
 			return resultingFaces;
 		};
 
@@ -347,7 +383,7 @@ const FoldEngine = {
 			const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
 			const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
 			
-			if (GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2) * mobileSideSign > 1e-9) {
+			if (GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2) * mobileSideSign > EPSILON) {
 				face.layer = highestLayer + 1;
 				face.isRecto = !face.isRecto;
 				face.vertices.forEach(v => mobileVertices.add(v));
@@ -636,14 +672,63 @@ const UI = {
 			this.elements.svg.appendChild(circle);
 		});
 
+		const drawLabel = (text, x, y, offsetX = 15, offsetY = -15) => {
+			const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+			label.setAttribute('x', x + offsetX);
+			label.setAttribute('y', y + offsetY);
+			label.textContent = text;
+			label.classList.add('selection-label');
+			this.elements.svg.appendChild(label);
+		};
+
+		switch (currentAxiom) {
+			case 'AXIOM_1':
+			case 'AXIOM_2':
+				if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
+				if (selectedVertices.length > 1) drawLabel('P2', selectedVertices[1].x, selectedVertices[1].y);
+				break;
+			case 'AXIOM_3':
+				if (selectedVertices.length >= 2) {
+					const midX = (selectedVertices[0].x + selectedVertices[1].x) / 2;
+					const midY = (selectedVertices[0].y + selectedVertices[1].y) / 2;
+					drawLabel('L1', midX, midY);
+				}
+				if (selectedVertices.length >= 4) {
+					const midX = (selectedVertices[2].x + selectedVertices[3].x) / 2;
+					const midY = (selectedVertices[2].y + selectedVertices[3].y) / 2;
+					drawLabel('L2', midX, midY);
+				}
+				break;
+			case 'AXIOM_4':
+				if (selectedVertices.length >= 2) {
+					const midX = (selectedVertices[0].x + selectedVertices[1].x) / 2;
+					const midY = (selectedVertices[0].y + selectedVertices[1].y) / 2;
+					drawLabel('L', midX, midY);
+				}
+				if (selectedVertices.length >= 3) {
+					drawLabel('P', selectedVertices[2].x, selectedVertices[2].y);
+				}
+				break;
+			case 'AXIOM_5':
+				if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
+				if (selectedVertices.length > 1) drawLabel('P2', selectedVertices[1].x, selectedVertices[1].y);
+				if (selectedVertices.length >= 4) {
+					const midX = (selectedVertices[2].x + selectedVertices[3].x) / 2;
+					const midY = (selectedVertices[2].y + selectedVertices[3].y) / 2;
+					drawLabel('L', midX, midY);
+				}
+				break;
+		}
+
 		this.elements.selectedPointsCountEl.textContent = selectedVertices.length;
 		this.elements.requiredPointsCountEl.textContent = axiomInfo.requiredPoints;
 		this.elements.faceCountEl.textContent = mesh.faces.length;
 		this.elements.vertexCountEl.textContent = mesh.vertices.length;
 		this.elements.currentToolNameEl.textContent = axiomInfo.name;
 		
-		const prompt = axiomInfo.prompts[selectedVertices.length] || axiomInfo.desc;
-		this.elements.currentToolDescEl.textContent = prompt;
+		const prompt = axiomInfo.prompts(selectedVertices);
+		this.elements.currentToolDescEl.innerHTML = `<strong>Instruction :</strong> ${prompt}<hr>${axiomInfo.desc}`;
+
 
 		this.elements.foldButton.disabled = isProcessing || selectedVertices.length !== axiomInfo.requiredPoints;
 		this.elements.flipButton.disabled = isProcessing;
@@ -774,7 +859,7 @@ const AppController = {
 				mobilePoint = p1;
 				break;
 			case 'AXIOM_4':
-				mobilePoint = p3;
+				mobilePoint = p1;
 				break;
 			case 'AXIOM_5':
 				mobilePoint = p2;
@@ -810,27 +895,37 @@ const AppController = {
 	flipPaper() {
 		if (AppState.isProcessing) return;
 
-		if (AppState.mesh.vertices.length > 0) {
-			const xCoords = AppState.mesh.vertices.map(v => v.x);
-			const minX = Math.min(...xCoords);
-			const maxX = Math.max(...xCoords);
-			const centerX = (minX + maxX) / 2;
+		const flipActionName = 'Retourner la feuille';
+		const lastAction = AppState.history[AppState.historyIndex]?.action;
+		
+		if (lastAction === flipActionName) {
+			AppState.history.pop();
+			AppState.historyIndex--;
+			AppState.mesh = cloneMesh(AppState.history[AppState.historyIndex].mesh);
+		} else {
+			if (AppState.mesh.vertices.length > 0) {
+				const xCoords = AppState.mesh.vertices.map(v => v.x);
+				const minX = Math.min(...xCoords);
+				const maxX = Math.max(...xCoords);
+				const centerX = (minX + maxX) / 2;
 
-			AppState.mesh.vertices.forEach(vertex => {
-				vertex.x = 2 * centerX - vertex.x;
+				AppState.mesh.vertices.forEach(vertex => {
+					vertex.x = 2 * centerX - vertex.x;
+				});
+			}
+
+			const maxLayer = AppState.mesh.faces.reduce((max, f) => Math.max(max, f.layer), 0);
+			AppState.mesh.faces.forEach(face => {
+				face.isRecto = !face.isRecto;
+				face.layer = maxLayer - face.layer;
+				face.vertices.reverse();
 			});
-		}
 
-		const maxLayer = AppState.mesh.faces.reduce((max, f) => Math.max(max, f.layer), 0);
-		AppState.mesh.faces.forEach(face => {
-			face.isRecto = !face.isRecto;
-			face.layer = maxLayer - face.layer;
-			face.vertices.reverse();
-		});
-		const action = 'Retourner la feuille';
-		AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
-		AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: action });
-		AppState.historyIndex++;
+			AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
+			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: flipActionName });
+			AppState.historyIndex++;
+		}
+		
 		UI.render(AppState);
 	},
 	

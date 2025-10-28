@@ -125,6 +125,11 @@ button:disabled {
 	gap: 5px;
 }
 
+#current-tool-desc hr {
+	border-color: var(--border-color);
+	margin: 10px 0;
+}
+
 #history-list {
 	list-style: none;
 	padding: 0;
@@ -233,4 +238,17 @@ svg.xray-mode .hidden-edge {
 	stroke-dasharray: 2 3;
 	pointer-events: none;
 	opacity: 0.8;
+}
+
+svg .selection-label {
+	font-family: monospace;
+	font-size: 16px;
+	fill: var(--highlight-color);
+	stroke: var(--bg-color);
+	stroke-width: 0.5px;
+	paint-order: stroke;
+	text-anchor: middle;
+	dominant-baseline: central;
+	pointer-events: none;
+	font-weight: bold;
 }
