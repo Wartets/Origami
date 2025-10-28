@@ -148,10 +148,18 @@ button:disabled {
 	padding: 5px;
 	font-size: 13px;
 	border-bottom: 1px solid var(--border-color);
+	cursor: pointer;
+	transition: background-color 0.2s, color 0.2s;
 }
 
 #history-list li:first-child {
 	border-top: 1px solid var(--border-color);
+}
+
+#history-list li:hover,
+#history-list li.active {
+	background-color: var(--primary-color);
+	color: white;
 }
 
 #origami-svg {

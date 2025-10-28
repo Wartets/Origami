@@ -437,6 +437,8 @@ const FoldEngine = {
 };
 
 // SECTION: APPLICATION STATE MANAGEMENT
+const STORAGE_KEY = 'origamiAppState';
+
 const AppState = {
 	mesh: null,
 	history: [],
@@ -563,6 +565,7 @@ const UI = {
 		this.elements.redoButton.addEventListener('click', () => controller.redo());
 		this.elements.resetButton.addEventListener('click', () => controller.reset());
 		this.elements.xrayButton.addEventListener('click', () => controller.toggleXRay());
+		this.elements.historyListEl.addEventListener('click', (e) => controller.handleHistoryClick(e));
 
 		Object.keys(this.elements.axiomButtons).forEach(axiomId => {
 			const button = this.elements.axiomButtons[axiomId];
@@ -787,9 +790,14 @@ const UI = {
 		this.elements.selectionProgressBar.style.width = `${progressPercentage}%`;
 
 		this.elements.historyListEl.innerHTML = '';
-		history.slice(1, historyIndex + 1).forEach((histItem, index) => {
+		history.slice(1).forEach((histItem, index) => {
 			const li = document.createElement('li');
-			li.textContent = `${index + 1}: ${t(histItem.action.key, histItem.action.params)}`;
+			const historyItemIndex = index + 1;
+			li.textContent = `${historyItemIndex}: ${t(histItem.action.key, histItem.action.params)}`;
+			li.dataset.historyIndex = historyItemIndex;
+			if (historyItemIndex === historyIndex) {
+				li.classList.add('active');
+			}
 			this.elements.historyListEl.appendChild(li);
 		});
 	},
@@ -819,8 +827,6 @@ const UI = {
 };
 
 // SECTION: APPLICATION CONTROLLER
-const STORAGE_KEY = 'origamiAppState';
-
 const AppController = {
 	init() {
 		UI.init(this);
@@ -1057,6 +1063,26 @@ const AppController = {
 		AppState.currentAxiom = axiomId;
 		AppState.clearSelection();
 		UI.displayError('');
+		this.saveStateToLocalStorage();
+		UI.render(AppState);
+	},
+
+	handleHistoryClick(event) {
+		const targetLi = event.target.closest('li[data-history-index]');
+		if (!targetLi || AppState.isProcessing) return;
+
+		const index = parseInt(targetLi.dataset.historyIndex, 10);
+		if (!isNaN(index)) {
+			this.jumpToHistoryState(index);
+		}
+	},
+
+	jumpToHistoryState(index) {
+		if (AppState.isProcessing || index < 0 || index >= AppState.history.length) return;
+
+		AppState.historyIndex = index;
+		AppState.mesh = cloneMesh(AppState.history[AppState.historyIndex].mesh);
+		AppState.clearSelection();
 		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
