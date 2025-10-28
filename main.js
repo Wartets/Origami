@@ -960,10 +960,10 @@ const UI = {
 		});
 
 		mesh.vertices.forEach(vertex => {
-			const maxLayerOfVertex = vertexMaxLayerMap.get(vertex.id) ?? -Infinity;
+			const maxLayerOfVertex = vertexMaxLayerMap.get(vertex.id);
 			let isHidden = false;
 
-			if (!isXRayMode) {
+			if (!isXRayMode && maxLayerOfVertex !== undefined) {
 				for (const face of mesh.faces) {
 					if (face.layer > maxLayerOfVertex) {
 						if (!face.vertices.some(v => v.id === vertex.id) && GEOMETRY.isPointInPolygon(vertex, face.vertices)) {
@@ -1459,8 +1459,30 @@ const AppController = {
 	flipPaper() {
 		if (AppState.isProcessing) return;
 
-		if (AppState.mesh.vertices.length > 0) {
-			const xCoords = AppState.mesh.vertices.map(v => v.x);
+		if (AppState.historyIndex > 0 && AppState.history[AppState.historyIndex]?.action?.key === 'historyFlip') {
+			AppState.history.pop();
+			AppState.historyIndex--;
+			AppState.mesh = cloneMesh(AppState.history[AppState.historyIndex].mesh);
+			
+			AppState.clearSelection();
+			this.saveStateToLocalStorage();
+			UI.render(AppState);
+			return;
+		}
+
+		const activeVertices = new Map();
+		AppState.mesh.faces.forEach(face => {
+			face.vertices.forEach(v => {
+				if (!activeVertices.has(v.id)) {
+					activeVertices.set(v.id, v);
+				}
+			});
+		});
+		
+		const verticesToConsider = activeVertices.size > 0 ? Array.from(activeVertices.values()) : AppState.mesh.vertices;
+
+		if (verticesToConsider.length > 0) {
+			const xCoords = verticesToConsider.map(v => v.x);
 			const minX = Math.min(...xCoords);
 			const maxX = Math.max(...xCoords);
 			const centerX = (minX + maxX) / 2;
@@ -1487,9 +1509,10 @@ const AppController = {
 			});
 		}
 		
-		// FlipPaper n'est pas dans l'historique, c'est normal. Cette action n'a pas assez d'importance pour y être
-		
-		AppState.history[AppState.historyIndex].mesh = cloneMesh(AppState.mesh);
+		const action = { key: 'historyFlip' };
+		AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
+		AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: action });
+		AppState.historyIndex++;
 		
 		AppState.clearSelection();
 		this.saveStateToLocalStorage();
