@@ -1,3 +1,13 @@
+import { translations } from './i18n.js';
+
+const t = (key, params = {}) => {
+	let str = translations[AppState.currentLanguage]?.[key] || key;
+	for (const p in params) {
+		str = str.replace(`{{${p}}}`, params[p]);
+	}
+	return str;
+};
+
 // SECTION: DATA CLASSES
 let uniqueIdCounter = 0;
 const generateUniqueId = () => `id_${uniqueIdCounter++}`;
@@ -163,14 +173,14 @@ const GEOMETRY = {
 // SECTION: AXIOMS CONFIGURATION
 const AXIOMS = {
 	'AXIOM_1': {
-		name: 'Axiome 1',
-		desc: 'Crée un pli passant par deux points existants P1 et P2.<br><strong>Mathématiquement :</strong> Définit une ligne unique dans le plan euclidien.',
+		nameKey: 'axiom1Name',
+		descKey: 'axiom1Desc',
 		requiredPoints: 2,
 		prompts: (selected) => {
 			switch (selected.length) {
-				case 0: return 'Sélectionnez le premier point (P1).';
-				case 1: return 'Sélectionnez le second point (P2) pour définir la ligne de pli.';
-				default: return 'Prêt à plier.';
+				case 0: return 'axiom1Prompt1';
+				case 1: return 'axiom1Prompt2';
+				default: return 'axiom1PromptReady';
 			}
 		},
 		getFoldLine: (points) => {
@@ -183,14 +193,14 @@ const AXIOMS = {
 		}
 	},
 	'AXIOM_2': {
-		name: 'Axiome 2',
-		desc: 'Amène un point P1 sur un point P2.<br><strong>Mathématiquement :</strong> Le pli est la médiatrice du segment [P1, P2].',
+		nameKey: 'axiom2Name',
+		descKey: 'axiom2Desc',
 		requiredPoints: 2,
 		prompts: (selected) => {
 			switch (selected.length) {
-				case 0: return 'Sélectionnez le point à déplacer (P1).';
-				case 1: return 'Sélectionnez le point de destination (P2).';
-				default: return 'P1 sera plié sur P2.';
+				case 0: return 'axiom2Prompt1';
+				case 1: return 'axiom2Prompt2';
+				default: return 'axiom2PromptReady';
 			}
 		},
 		getFoldLine: (points) => {
@@ -206,16 +216,16 @@ const AXIOMS = {
 		}
 	},
 	'AXIOM_3': {
-		name: 'Axiome 3',
-		desc: 'Superpose deux lignes L1 et L2.<br><strong>Mathématiquement :</strong> Le pli est la bissectrice de l\'angle formé par L1 et L2.',
+		nameKey: 'axiom3Name',
+		descKey: 'axiom3Desc',
 		requiredPoints: 4,
 		prompts: (selected) => {
 			switch (selected.length) {
-				case 0: return 'Sélectionnez le premier point de la Ligne 1 (ou une arête).';
-				case 1: return 'Sélectionnez le second point de la Ligne 1.';
-				case 2: return 'Ligne 1 définie. Sélectionnez le premier point de la Ligne 2 (ou une arête).';
-				case 3: return 'Sélectionnez le second point de la Ligne 2.';
-				default: return 'L1 sera pliée sur L2.';
+				case 0: return 'axiom3Prompt1';
+				case 1: return 'axiom3Prompt2';
+				case 2: return 'axiom3Prompt3';
+				case 3: return 'axiom3Prompt4';
+				default: return 'axiom3PromptReady';
 			}
 		},
 		getFoldLine: (points) => {
@@ -236,15 +246,15 @@ const AXIOMS = {
 		}
 	},
 	'AXIOM_4': {
-		name: 'Axiome 4',
-		desc: 'Crée un pli passant par un point P et perpendiculaire à une ligne L.<br><strong>Mathématiquement :</strong> Le vecteur directeur du pli est orthogonal au vecteur directeur de L.',
+		nameKey: 'axiom4Name',
+		descKey: 'axiom4Desc',
 		requiredPoints: 3,
 		prompts: (selected) => {
 			switch (selected.length) {
-				case 0: return 'Sélectionnez le premier point de la ligne L (ou une arête).';
-				case 1: return 'Sélectionnez le second point de la ligne L.';
-				case 2: return 'Ligne L définie. Sélectionnez le point P par lequel le pli doit passer.';
-				default: return 'Pli perpendiculaire à L passant par P.';
+				case 0: return 'axiom4Prompt1';
+				case 1: return 'axiom4Prompt2';
+				case 2: return 'axiom4Prompt3';
+				default: return 'axiom4PromptReady';
 			}
 		},
 		getFoldLine: (points) => {
@@ -258,16 +268,16 @@ const AXIOMS = {
 		}
 	},
 	'AXIOM_5': {
-		name: 'Axiome 5',
-		desc: 'Crée un pli passant par P1 qui amène un point P2 sur une ligne L.<br><strong>Mathématiquement :</strong> Le point P2\' (destination de P2 sur L) est à l\'intersection de L et du cercle de centre P1 et de rayon |P1P2|. Le pli est la médiatrice de [P2, P2\'].',
+		nameKey: 'axiom5Name',
+		descKey: 'axiom5Desc',
 		requiredPoints: 4,
 		prompts: (selected) => {
 			switch (selected.length) {
-				case 0: return 'Sélectionnez P1 (le pivot du pli).';
-				case 1: return 'Sélectionnez P2 (le point à amener sur la ligne L).';
-				case 2: return 'Points P1 et P2 définis. Sélectionnez le premier point de la ligne L (ou une arête).';
-				case 3: return 'Sélectionnez le second point de la ligne L.';
-				default: return 'Amène P2 sur L par un pli passant par P1.';
+				case 0: return 'axiom5Prompt1';
+				case 1: return 'axiom5Prompt2';
+				case 2: return 'axiom5Prompt3';
+				case 3: return 'axiom5Prompt4';
+				default: return 'axiom5PromptReady';
 			}
 		},
 		getFoldLine: (points) => {
@@ -294,10 +304,10 @@ const AXIOMS = {
 		}
 	},
 	'AXIOM_6': {
-		name: 'Axiome 6',
-		desc: 'Amène P1 sur L1 et P2 sur L2. Non implémenté.<br><strong>Mathématiquement :</strong> Le pli est une tangente commune à deux paraboles. La recherche de cette tangente revient à résoudre une équation du troisième degré.',
+		nameKey: 'axiom6Name',
+		descKey: 'axiom6Desc',
 		requiredPoints: 6,
-		prompts: (selected) => 'Cet axiome n\'est pas implémenté.',
+		prompts: (selected) => 'axiom6Prompt1',
 		getFoldLine: (points) => {
 			console.warn("Axiome 6 n'est pas implémenté en raison de sa complexité géométrique.");
 			return null;
@@ -312,7 +322,7 @@ const FoldEngine = {
 		const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
 
 		if (Math.abs(mobileSideSign) < EPSILON) {
-			return { mesh: null, error: "Le point mobile est sur la ligne de pli, pliage impossible." };
+			return { mesh: null, error: t('errorMobilePointOnFoldLine') };
 		}
 
 		const newMesh = new Mesh();
@@ -413,6 +423,7 @@ const AppState = {
 	isPanning: false,
 	panStartPoint: { x: 0, y: 0 },
 	dragOccurred: false,
+	currentLanguage: 'en',
 
 	init() {
 		const m = new Mesh();
@@ -436,7 +447,7 @@ const AppState = {
 		m.faces.push(new Face([v1, v2, v3, v4]));
 		
 		this.mesh = m;
-		this.history = [{ mesh: cloneMesh(m), action: 'Initialisation' }];
+		this.history = [{ mesh: cloneMesh(m), action: { key: 'historyInit' } }];
 		this.historyIndex = 0;
 		this.selectedVertices = [];
 		this.isProcessing = false;
@@ -509,7 +520,8 @@ const UI = {
 			currentToolNameEl: document.getElementById('current-tool-name'),
 			currentToolDescEl: document.getElementById('current-tool-desc'),
 			errorMessageEl: document.getElementById('error-message'),
-			selectionProgressBar: document.getElementById('selection-progress-bar')
+			selectionProgressBar: document.getElementById('selection-progress-bar'),
+			langButtons: document.querySelectorAll('[data-lang]'),
 		};
 		
 		this.elements.svg.addEventListener('click', (e) => controller.handleSVGClick(e));
@@ -531,6 +543,10 @@ const UI = {
 			if (button) {
 				button.addEventListener('click', () => controller.changeAxiom(axiomId));
 			}
+		});
+
+		this.elements.langButtons.forEach(button => {
+			button.addEventListener('click', (e) => controller.changeLanguage(e.currentTarget.dataset.lang));
 		});
 	},
 
@@ -725,11 +741,10 @@ const UI = {
 		this.elements.requiredPointsCountEl.textContent = axiomInfo.requiredPoints;
 		this.elements.faceCountEl.textContent = mesh.faces.length;
 		this.elements.vertexCountEl.textContent = mesh.vertices.length;
-		this.elements.currentToolNameEl.textContent = axiomInfo.name;
+		this.elements.currentToolNameEl.textContent = t(axiomInfo.nameKey);
 		
-		const prompt = axiomInfo.prompts(selectedVertices);
-		this.elements.currentToolDescEl.innerHTML = `<strong>Instruction :</strong> ${prompt}<hr>${axiomInfo.desc}`;
-
+		const prompt = t(axiomInfo.prompts(selectedVertices));
+		this.elements.currentToolDescEl.innerHTML = `<strong>${t('instructionLabel')}:</strong> ${prompt}<hr>${t(axiomInfo.descKey)}`;
 
 		this.elements.foldButton.disabled = isProcessing || selectedVertices.length !== axiomInfo.requiredPoints;
 		this.elements.flipButton.disabled = isProcessing;
@@ -748,8 +763,18 @@ const UI = {
 		this.elements.historyListEl.innerHTML = '';
 		history.slice(1, historyIndex + 1).forEach((histItem, index) => {
 			const li = document.createElement('li');
-			li.textContent = `${index + 1}: ${histItem.action}`;
+			li.textContent = `${index + 1}: ${t(histItem.action.key, histItem.action.params)}`;
 			this.elements.historyListEl.appendChild(li);
+		});
+	},
+	
+	updateStaticTexts() {
+		document.querySelectorAll('[data-i18n]').forEach(el => {
+			const key = el.dataset.i18n;
+			el.innerHTML = t(key);
+		});
+		this.elements.langButtons.forEach(button => {
+			button.classList.toggle('active', button.dataset.lang === AppState.currentLanguage);
 		});
 	},
 	
@@ -772,6 +797,7 @@ const AppController = {
 	init() {
 		UI.init(this);
 		AppState.init();
+		UI.updateStaticTexts();
 		UI.render(AppState);
 	},
 
@@ -856,7 +882,7 @@ const AppController = {
 		if (AppState.isProcessing || AppState.selectedVertices.length !== axiom.requiredPoints) return;
 		
 		if (AppState.currentAxiom === 'AXIOM_6') {
-			UI.displayError("L'axiome 6 n'est pas implémenté.", 10000);
+			UI.displayError(t('errorAxiom6NotImplemented'), 10000);
 			return;
 		}
 
@@ -865,7 +891,7 @@ const AppController = {
 		
 		const foldLine = axiom.getFoldLine(AppState.selectedVertices);
 		if (!foldLine) {
-			UI.displayError("Les points sélectionnés ne permettent pas de créer un pli valide.");
+			UI.displayError(t('errorInvalidFold'));
 			AppState.isProcessing = false;
 			UI.render(AppState);
 			return;
@@ -899,7 +925,10 @@ const AppController = {
 		if (foldResult.mesh) {
 			UI.displayError('');
 			AppState.mesh = foldResult.mesh;
-			const action = `Pli ${AXIOMS[AppState.currentAxiom].name}`;
+			const action = { 
+				key: 'historyFold', 
+				params: { axiomName: t(AXIOMS[AppState.currentAxiom].nameKey) }
+			};
 			AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
 			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: action });
 			AppState.historyIndex++;
@@ -921,10 +950,10 @@ const AppController = {
 	flipPaper() {
 		if (AppState.isProcessing) return;
 
-		const flipActionName = 'Retourner la feuille';
+		const flipActionKey = 'historyFlip';
 		const lastAction = AppState.history[AppState.historyIndex]?.action;
 		
-		if (lastAction === flipActionName) {
+		if (lastAction?.key === flipActionKey) {
 			AppState.history.pop();
 			AppState.historyIndex--;
 			AppState.mesh = cloneMesh(AppState.history[AppState.historyIndex].mesh);
@@ -948,10 +977,18 @@ const AppController = {
 			});
 
 			AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
-			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: flipActionName });
+			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: { key: flipActionKey } });
 			AppState.historyIndex++;
 		}
 		
+		UI.render(AppState);
+	},
+	
+	changeLanguage(lang) {
+		if (AppState.isProcessing || !translations[lang]) return;
+		AppState.currentLanguage = lang;
+		document.documentElement.lang = lang;
+		UI.updateStaticTexts();
 		UI.render(AppState);
 	},
 	

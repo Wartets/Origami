@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 	<meta charset="UTF-8">
 	<title>Origami</title>
@@ -12,61 +12,65 @@
 	</main>
 
 	<nav id="toolbar-left">
-		<h4>Outils de Pliage</h4>
+		<h4 data-i18n="toolHeader"></h4>
 		<div class="tool-group">
-			<button id="axiom1-button" class="tool-button">Axiome 1</button>
-			<button id="axiom2-button" class="tool-button active">Axiome 2</button>
-			<button id="axiom3-button" class="tool-button">Axiome 3</button>
-			<button id="axiom4-button" class="tool-button">Axiome 4</button>
-			<button id="axiom5-button" class="tool-button">Axiome 5</button>
-			<button id="axiom6-button" class="tool-button">Axiome 6</button>
+			<button id="axiom1-button" class="tool-button" data-i18n="axiom1"></button>
+			<button id="axiom2-button" class="tool-button active" data-i18n="axiom2"></button>
+			<button id="axiom3-button" class="tool-button" data-i18n="axiom3"></button>
+			<button id="axiom4-button" class="tool-button" data-i18n="axiom4"></button>
+			<button id="axiom5-button" class="tool-button" data-i18n="axiom5"></button>
+			<button id="axiom6-button" class="tool-button" data-i18n="axiom6"></button>
 		</div>
 		<div id="tool-info">
-			<p><strong>Outil Actif :</strong> <span id="current-tool-name"></span></p>
+			<p><strong><span data-i18n="activeTool"></span></strong> <span id="current-tool-name"></span></p>
 			<p id="current-tool-desc"></p>
 		</div>
 		
 		<div id="error-console">
-			<h4>Console</h4>
+			<h4 data-i18n="consoleHeader"></h4>
 			<p id="error-message"></p>
 		</div>
 	</nav>
 
 	<header id="actions-top">
-		<button id="fold-button" disabled><i class="fa-solid fa-scissors"></i>PLIER</button>
-		<button id="flip-button"><i class="fa-solid fa-right-left"></i>Retourner</button>
-		<button id="undo-button" disabled><i class="fa-solid fa-rotate-left"></i>Défaire</button>
-		<button id="redo-button" disabled><i class="fa-solid fa-rotate-right"></i>Refaire</button>
-		<button id="reset-button"><i class="fa-solid fa-eraser"></i>Réinitialiser</button>
-		<button id="xray-button"><i class="fa-solid fa-x-ray"></i>Rayons X</button>
+		<div id="lang-selector">
+			<button data-lang="fr" class="lang-button active">FR</button>
+			<button data-lang="en" class="lang-button">EN</button>
+		</div>
+		<button id="fold-button" disabled><i class="fa-solid fa-scissors"></i><span data-i18n="foldButton"></span></button>
+		<button id="flip-button"><i class="fa-solid fa-right-left"></i><span data-i18n="flipButton"></span></button>
+		<button id="undo-button" disabled><i class="fa-solid fa-rotate-left"></i><span data-i18n="undoButton"></span></button>
+		<button id="redo-button" disabled><i class="fa-solid fa-rotate-right"></i><span data-i18n="redoButton"></span></button>
+		<button id="reset-button"><i class="fa-solid fa-eraser"></i><span data-i18n="resetButton"></span></button>
+		<button id="xray-button"><i class="fa-solid fa-x-ray"></i><span data-i18n="xrayButton"></span></button>
 	</header>
 
 	<aside id="info-panel">
-		<h4>Informations</h4>
+		<h4 data-i18n="infoHeader"></h4>
 		<div id="info-content">
-			<h5>Sélection Actuelle</h5>
+			<h5 data-i18n="currentSelection"></h5>
 			<div class="info-item">
-				<span class="info-label"><i class="fa-solid fa-circle-dot"></i> Points</span>
+				<span class="info-label"><i class="fa-solid fa-circle-dot"></i> <span data-i18n="pointsLabel"></span></span>
 				<span class="info-value"><span id="selected-points-count">0</span> / <span id="required-points-count">2</span></span>
 			</div>
 			<div class="progress-bar-container">
 				<div id="selection-progress-bar"></div>
 			</div>
 
-			<h5 class="stats-header">Statistiques du Modèle</h5>
+			<h5 class="stats-header" data-i18n="modelStats"></h5>
 			<div class="info-item">
-				<span class="info-label"><i class="fa-solid fa-shapes"></i> Faces</span>
+				<span class="info-label"><i class="fa-solid fa-shapes"></i> <span data-i18n="facesLabel"></span></span>
 				<span class="info-value" id="face-count">0</span>
 			</div>
 			<div class="info-item">
-				<span class="info-label"><i class="fa-solid fa-draw-polygon"></i> Sommets</span>
+				<span class="info-label"><i class="fa-solid fa-draw-polygon"></i> <span data-i18n="verticesLabel"></span></span>
 				<span class="info-value" id="vertex-count">0</span>
 			</div>
 		</div>
 	</aside>
 
 	<aside id="history-panel">
-		<h4>Historique</h4>
+		<h4 data-i18n="historyHeader"></h4>
 		<ul id="history-list"></ul>
 	</aside>
 

@@ -320,3 +320,27 @@ svg .selection-label {
 	border-radius: 4px;
 	transition: width 0.3s ease;
 }
+
+#lang-selector {
+	display: flex;
+	gap: 5px;
+	position: absolute;
+	right: 15px;
+	bottom: 15px;
+}
+
+.lang-button {
+	padding: 5px 10px;
+	font-size: 12px;
+	min-width: 40px;
+	width: auto;
+	background-color: transparent;
+	border: 1px solid var(--border-color);
+	color: var(--text-color);
+}
+
+.lang-button.active {
+	background-color: var(--primary-color);
+	border-color: var(--primary-color);
+	color: white;
+}
