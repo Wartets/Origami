@@ -8,6 +8,8 @@ const t = (key, params = {}) => {
 	return str;
 };
 
+const STORAGE_KEY = 'origamiAppState';
+
 // SECTION: DATA CLASSES
 let uniqueIdCounter = 0;
 const generateUniqueId = () => `id_${uniqueIdCounter++}`;
@@ -652,8 +654,6 @@ const FoldEngine = {
 };
 
 // SECTION: APPLICATION STATE MANAGEMENT
-const STORAGE_KEY = 'origamiAppState';
-
 const AppState = {
 	mesh: null,
 	history: [],
