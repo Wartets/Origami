@@ -64,6 +64,32 @@ function cloneMesh(oldMesh) {
 	return newMesh;
 }
 
+function rehydrateMesh(plainMesh) {
+	const newMesh = new Mesh();
+	const vertexMap = new Map();
+
+	plainMesh.vertices.forEach(v => {
+		const newV = new Vertex(v.x, v.y);
+		newV.id = v.id;
+		newMesh.vertices.push(newV);
+		vertexMap.set(v.id, newV);
+	});
+
+	plainMesh.faces.forEach(f => {
+		const newFaceVertices = f.vertices.map(v => vertexMap.get(v.id));
+		const newF = new Face(newFaceVertices, f.layer, f.isRecto);
+		newF.id = f.id;
+		newMesh.faces.push(newF);
+	});
+
+	newMesh.creases = plainMesh.creases.map(c => ({
+		p1: { x: c.p1.x, y: c.p1.y },
+		p2: { x: c.p2.x, y: c.p2.y }
+	}));
+
+	return newMesh;
+}
+
 // SECTION: GEOMETRY UTILS
 const GEOMETRY = {
 	getLineSide(p, lineP1, lineP2) {
@@ -793,10 +819,15 @@ const UI = {
 };
 
 // SECTION: APPLICATION CONTROLLER
+const STORAGE_KEY = 'origamiAppState';
+
 const AppController = {
 	init() {
 		UI.init(this);
-		AppState.init();
+		if (!this.loadStateFromLocalStorage()) {
+			AppState.init();
+		}
+		document.documentElement.lang = AppState.currentLanguage;
 		UI.updateStaticTexts();
 		UI.render(AppState);
 	},
@@ -825,6 +856,7 @@ const AppController = {
 		UI.elements.svg.setAttribute('viewBox', `${AppState.viewBox.x} ${AppState.viewBox.y} ${AppState.viewBox.width} ${AppState.viewBox.height}`);
 
 		AppState.panStartPoint = { x: event.clientX, y: event.clientY };
+		this.saveStateToLocalStorage();
 	},
 
 	handlePanEnd() {
@@ -850,6 +882,7 @@ const AppController = {
 		AppState.viewBox.y = viewBoxMouseY - mouseY * (AppState.viewBox.height / svgRect.height);
 
 		UI.elements.svg.setAttribute('viewBox', `${AppState.viewBox.x} ${AppState.viewBox.y} ${AppState.viewBox.width} ${AppState.viewBox.height}`);
+		this.saveStateToLocalStorage();
 	},
 
 	handleSVGClick(event) {
@@ -938,12 +971,14 @@ const AppController = {
 
 		AppState.clearSelection();
 		AppState.isProcessing = false;
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
 	
 	toggleXRay() {
 		if (AppState.isProcessing) return;
 		AppState.isXRayMode = !AppState.isXRayMode;
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
 
@@ -981,6 +1016,7 @@ const AppController = {
 			AppState.historyIndex++;
 		}
 		
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
 	
@@ -989,6 +1025,7 @@ const AppController = {
 		AppState.currentLanguage = lang;
 		document.documentElement.lang = lang;
 		UI.updateStaticTexts();
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
 	
@@ -996,6 +1033,7 @@ const AppController = {
 		if (AppState.isProcessing) return;
 		AppState.undo();
 		AppState.clearSelection();
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
 
@@ -1003,12 +1041,14 @@ const AppController = {
 		if (AppState.isProcessing) return;
 		AppState.redo();
 		AppState.clearSelection();
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
 
 	reset() {
 		if (AppState.isProcessing) return;
 		AppState.init();
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
 	
@@ -1017,8 +1057,53 @@ const AppController = {
 		AppState.currentAxiom = axiomId;
 		AppState.clearSelection();
 		UI.displayError('');
+		this.saveStateToLocalStorage();
 		UI.render(AppState);
-	}
+	},
+	
+	saveStateToLocalStorage() {
+		try {
+			const stateToSave = {
+				history: AppState.history,
+				historyIndex: AppState.historyIndex,
+				currentAxiom: AppState.currentAxiom,
+				isXRayMode: AppState.isXRayMode,
+				viewBox: AppState.viewBox,
+				currentLanguage: AppState.currentLanguage,
+			};
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+		} catch (error) {
+			console.error("Could not save state to localStorage:", error);
+		}
+	},
+
+	loadStateFromLocalStorage() {
+		try {
+			const savedStateJSON = localStorage.getItem(STORAGE_KEY);
+			if (!savedStateJSON) return false;
+
+			const savedState = JSON.parse(savedStateJSON);
+
+			AppState.history = savedState.history.map(histItem => ({
+				...histItem,
+				mesh: rehydrateMesh(histItem.mesh)
+			}));
+			AppState.historyIndex = savedState.historyIndex;
+			AppState.mesh = cloneMesh(AppState.history[AppState.historyIndex].mesh);
+			AppState.currentAxiom = savedState.currentAxiom || 'AXIOM_2';
+			AppState.isXRayMode = savedState.isXRayMode || false;
+			AppState.viewBox = savedState.viewBox;
+			AppState.currentLanguage = savedState.currentLanguage || 'en';
+			
+			AppState.selectedVertices = [];
+			AppState.isProcessing = false;
+
+			return true;
+		} catch (error) {
+			console.error("Could not load state from localStorage:", error);
+			return false;
+		}
+	},
 };
 
 // Start the application
