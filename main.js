@@ -545,8 +545,16 @@ const FoldEngine = {
 			reflectedVertices: face.vertices.map(v => GEOMETRY.reflectPoint(v, foldLineP1, foldLineP2))
 		}));
 		
-		let targetLayer = (foldDirection === 'valley') ? -1 : Infinity;
-		const targetLayerUpdater = (foldDirection === 'valley') ? Math.max : Math.min;
+		let targetLayer;
+		let targetLayerUpdater;
+		if (foldDirection === 'valley') {
+			targetLayer = -1;
+			targetLayerUpdater = Math.max;
+		} else { // mountain
+			targetLayer = Infinity;
+			targetLayerUpdater = Math.min;
+		}
+		
 		let collisionDetected = false;
 
 		for (const mobile of reflectedMobileGeometries) {
@@ -941,29 +949,55 @@ const UI = {
 			this.elements.svg.appendChild(circle);
 		}
 
-		mesh.vertices.forEach(vertex => {
-			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-			circle.setAttribute('cx', vertex.x);
-			circle.setAttribute('cy', vertex.y);
-			
-			const isSelected = selectedVertices.find(v => v.id === vertex.id);
-			const radius = isSelected ? 8 : 6;
-			circle.setAttribute('r', radius * scaleFactor);
-			
-			circle.setAttribute('data-vertex-id', vertex.id);
-			circle.classList.add('vertex-handle');
-			
-			const baseStrokeWidth = 2;
-			circle.style.strokeWidth = `${baseStrokeWidth * scaleFactor}px`;
+		const vertexMaxLayerMap = new Map();
+		mesh.faces.forEach(face => {
+			face.vertices.forEach(vertex => {
+				const currentMax = vertexMaxLayerMap.get(vertex.id) || -Infinity;
+				if (face.layer > currentMax) {
+					vertexMaxLayerMap.set(vertex.id, face.layer);
+				}
+			});
+		});
 
-			if (isSelected) {
-				circle.classList.add('selected');
+		mesh.vertices.forEach(vertex => {
+			const maxLayerOfVertex = vertexMaxLayerMap.get(vertex.id) ?? -Infinity;
+			let isHidden = false;
+
+			if (!isXRayMode) {
+				for (const face of mesh.faces) {
+					if (face.layer > maxLayerOfVertex) {
+						if (!face.vertices.some(v => v.id === vertex.id) && GEOMETRY.isPointInPolygon(vertex, face.vertices)) {
+							isHidden = true;
+							break;
+						}
+					}
+				}
 			}
 
-			circle.addEventListener('mouseenter', () => circle.setAttribute('r', 8 * scaleFactor));
-			circle.addEventListener('mouseleave', () => circle.setAttribute('r', (isSelected ? 8 : 6) * scaleFactor));
+			if (!isHidden) {
+				const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+				circle.setAttribute('cx', vertex.x);
+				circle.setAttribute('cy', vertex.y);
 
-			this.elements.svg.appendChild(circle);
+				const isSelected = selectedVertices.find(v => v.id === vertex.id);
+				const radius = isSelected ? 8 : 6;
+				circle.setAttribute('r', radius * scaleFactor);
+
+				circle.setAttribute('data-vertex-id', vertex.id);
+				circle.classList.add('vertex-handle');
+
+				const baseStrokeWidth = 2;
+				circle.style.strokeWidth = `${baseStrokeWidth * scaleFactor}px`;
+
+				if (isSelected) {
+					circle.classList.add('selected');
+				}
+
+				circle.addEventListener('mouseenter', () => circle.setAttribute('r', 8 * scaleFactor));
+				circle.addEventListener('mouseleave', () => circle.setAttribute('r', (isSelected ? 8 : 6) * scaleFactor));
+
+				this.elements.svg.appendChild(circle);
+			}
 		});
 
 		const drawLabel = (text, x, y, offsetX = 15, offsetY = -15) => {
@@ -1441,16 +1475,21 @@ const AppController = {
 			});
 		}
 
-		const maxLayer = AppState.mesh.faces.reduce((max, f) => Math.max(max, f.layer), 0);
-		AppState.mesh.faces.forEach(face => {
-			face.isRecto = !face.isRecto;
-			face.layer = maxLayer - face.layer;
-			face.vertices.reverse();
-		});
+		if (AppState.mesh.faces.length > 0) {
+			const layers = AppState.mesh.faces.map(f => f.layer);
+			const minLayer = Math.min(...layers);
+			const maxLayer = Math.max(...layers);
 
-		AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
-		AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: { key: 'historyFlip' } });
-		AppState.historyIndex++;
+			AppState.mesh.faces.forEach(face => {
+				face.isRecto = !face.isRecto;
+				face.layer = minLayer + maxLayer - face.layer;
+				face.vertices.reverse();
+			});
+		}
+		
+		// FlipPaper n'est pas dans l'historique, c'est normal. Cette action n'a pas assez d'importance pour y être
+		
+		AppState.history[AppState.historyIndex].mesh = cloneMesh(AppState.mesh);
 		
 		AppState.clearSelection();
 		this.saveStateToLocalStorage();
