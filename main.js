@@ -395,7 +395,7 @@ const AXIOMS = {
 
 // SECTION: FOLDING LOGIC
 const FoldEngine = {
-	performFold(mesh, foldLine, mobilePoint) {
+	performFold(mesh, foldLine, mobilePoint, foldDirection) {
 		const { p1: foldLineP1, p2: foldLineP2 } = foldLine;
 
 		const activeFace = mesh.faces
@@ -545,27 +545,55 @@ const FoldEngine = {
 			reflectedVertices: face.vertices.map(v => GEOMETRY.reflectPoint(v, foldLineP1, foldLineP2))
 		}));
 		
-		let targetLayer = -1;
+		let targetLayer = (foldDirection === 'valley') ? -1 : Infinity;
+		const targetLayerUpdater = (foldDirection === 'valley') ? Math.max : Math.min;
+		let collisionDetected = false;
+
 		for (const mobile of reflectedMobileGeometries) {
 			for (const staticF of staticFaces) {
+				if (mobile.face.parentId === staticF.parentId) {
+					continue;
+				}
+
 				if (GEOMETRY.polygonsIntersect(mobile.reflectedVertices, staticF.vertices)) {
+					collisionDetected = true;
 					const originalMobileLayer = faceIdToFace.get(mobile.face.parentId).layer;
-					if (originalMobileLayer < staticF.layer) {
+					
+					if (foldDirection === 'valley' && originalMobileLayer < staticF.layer) {
 						return { mesh: null, error: t('errorInvalidFold') };
 					}
-					targetLayer = Math.max(targetLayer, staticF.layer);
+					if (foldDirection === 'mountain' && originalMobileLayer > staticF.layer) {
+						return { mesh: null, error: t('errorInvalidFold') };
+					}
+					
+					targetLayer = targetLayerUpdater(targetLayer, staticF.layer);
 				}
 			}
 		}
 
+		const allLayers = mesh.faces.map(f => f.layer);
+		const maxLayerInMesh = allLayers.length > 0 ? Math.max(...allLayers) : -1;
+		const minLayerInMesh = allLayers.length > 0 ? Math.min(...allLayers) : 0;
+		
 		const mobileOriginalLayers = Array.from(originalMobileIds).map(id => faceIdToFace.get(id).layer);
-		const minOriginalMobileLayer = Math.min(...mobileOriginalLayers);
+		const minOriginalMobileLayer = mobileOriginalLayers.length > 0 ? Math.min(...mobileOriginalLayers) : 0;
+		const maxOriginalMobileLayer = mobileOriginalLayers.length > 0 ? Math.max(...mobileOriginalLayers) : 0;
 
 		const reflectedVerticesMap = new Map();
 		mobileFaces.forEach(face => {
 			const originalFace = faceIdToFace.get(face.parentId);
-			const relativeLayer = originalFace.layer - minOriginalMobileLayer;
-			face.layer = (targetLayer + 1) + relativeLayer;
+			let relativeLayer, baseLayer;
+
+			if (foldDirection === 'valley') {
+				relativeLayer = originalFace.layer - minOriginalMobileLayer;
+				baseLayer = collisionDetected ? targetLayer + 1 : maxLayerInMesh + 1;
+				face.layer = baseLayer + relativeLayer;
+			} else { // mountain
+				relativeLayer = maxOriginalMobileLayer - originalFace.layer;
+				baseLayer = collisionDetected ? targetLayer - 1 : minLayerInMesh - 1;
+				face.layer = baseLayer - relativeLayer;
+			}
+			
 			face.isRecto = !originalFace.isRecto;
 
 			const newFaceVertices = [];
@@ -708,7 +736,8 @@ const UI = {
 	init(controller) {
 		this.elements = {
 			svg: document.getElementById('origami-svg'),
-			foldButton: document.getElementById('fold-button'),
+			foldValleyButton: document.getElementById('fold-valley-button'),
+			foldMountainButton: document.getElementById('fold-mountain-button'),
 			flipButton: document.getElementById('flip-button'),
 			undoButton: document.getElementById('undo-button'),
 			redoButton: document.getElementById('redo-button'),
@@ -742,7 +771,8 @@ const UI = {
 		this.elements.svg.addEventListener('mouseleave', () => controller.handlePanEnd());
 		this.elements.svg.addEventListener('wheel', (e) => controller.handleZoom(e));
 
-		this.elements.foldButton.addEventListener('click', () => controller.executeFold());
+		this.elements.foldValleyButton.addEventListener('click', () => controller.executeFold('valley'));
+		this.elements.foldMountainButton.addEventListener('click', () => controller.executeFold('mountain'));
 		this.elements.flipButton.addEventListener('click', () => controller.flipPaper());
 		this.elements.undoButton.addEventListener('click', () => controller.undo());
 		this.elements.redoButton.addEventListener('click', () => controller.redo());
@@ -997,7 +1027,9 @@ const UI = {
 		const prompt = t(axiomInfo.prompts(selectedVertices));
 		this.elements.currentToolDescEl.innerHTML = `<strong>${t('instructionLabel')}:</strong> ${prompt}<hr>${t(axiomInfo.descKey)}`;
 
-		this.elements.foldButton.disabled = isProcessing || currentAxiom === 'TOOL_ADD_POINT' || selectedVertices.length !== axiomInfo.requiredPoints;
+		const foldButtonsDisabled = isProcessing || currentAxiom === 'TOOL_ADD_POINT' || selectedVertices.length !== axiomInfo.requiredPoints;
+		this.elements.foldValleyButton.disabled = foldButtonsDisabled;
+		this.elements.foldMountainButton.disabled = foldButtonsDisabled;
 		this.elements.flipButton.disabled = isProcessing;
 		this.elements.undoButton.disabled = isProcessing || historyIndex <= 0;
 		this.elements.redoButton.disabled = isProcessing || historyIndex >= history.length - 1;
@@ -1314,7 +1346,7 @@ const AppController = {
 		return false;
 	},
 	
-	executeFold() {
+	executeFold(foldDirection) {
 		const axiom = AXIOMS[AppState.currentAxiom];
 		if (AppState.isProcessing || AppState.selectedVertices.length !== axiom.requiredPoints) return;
 		
@@ -1357,14 +1389,18 @@ const AppController = {
 				break;
 		}
 		
-		const foldResult = FoldEngine.performFold(AppState.mesh, foldLine, mobilePoint);
+		const foldResult = FoldEngine.performFold(AppState.mesh, foldLine, mobilePoint, foldDirection);
 		
 		if (foldResult.mesh) {
 			UI.displayError('');
 			AppState.mesh = foldResult.mesh;
+			const foldTypeName = t(foldDirection === 'valley' ? 'foldValley' : 'foldMountain');
 			const action = { 
 				key: 'historyFold', 
-				params: { axiomName: t(AXIOMS[AppState.currentAxiom].nameKey) }
+				params: { 
+					axiomName: t(AXIOMS[AppState.currentAxiom].nameKey),
+					foldTypeName: foldTypeName,
+				}
 			};
 			AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
 			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: action });

@@ -10,6 +10,10 @@ export const translations = {
 		activeTool: "Outil Actif :",
 		consoleHeader: "Console",
 		foldButton: "PLIER",
+		foldValleyButton: "Plier (Vallée)",
+		foldMountainButton: "Plier (Montagne)",
+		foldValley: "vallée",
+		foldMountain: "montagne",
 		flipButton: "Retourner",
 		undoButton: "Défaire",
 		redoButton: "Refaire",
@@ -69,7 +73,7 @@ export const translations = {
 		errorFoldOnEdge: "Il est interdit de plier le long d'un bord de la feuille.",
 
 		historyInit: "Initialisation",
-		historyFold: "Pli {{axiomName}}",
+		historyFold: "Pli {{axiomName}} ({{foldTypeName}})",
 		historyFlip: "Retourner la feuille",
 		historyAddPoint: "Ajout d'un point",
 
@@ -89,6 +93,10 @@ export const translations = {
 		activeTool: "Active Tool:",
 		consoleHeader: "Console",
 		foldButton: "FOLD",
+		foldValleyButton: "Fold Valley",
+		foldMountainButton: "Fold Mountain",
+		foldValley: "valley",
+		foldMountain: "mountain",
 		flipButton: "Flip",
 		undoButton: "Undo",
 		redoButton: "Redo",
@@ -148,7 +156,7 @@ export const translations = {
 		errorFoldOnEdge: "Folding along a paper edge is not allowed.",
 
 		historyInit: "Initialization",
-		historyFold: "{{axiomName}} Fold",
+		historyFold: "{{axiomName}} Fold ({{foldTypeName}})",
 		historyFlip: "Flip Paper",
 		historyAddPoint: "Add Point",
 
