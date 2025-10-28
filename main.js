@@ -53,7 +53,6 @@ function cloneMesh(oldMesh) {
 	return newMesh;
 }
 
-
 // SECTION: GEOMETRY UTILS
 const GEOMETRY = {
 	getLineSide(p, lineP1, lineP2) {
@@ -156,13 +155,16 @@ const GEOMETRY = {
 	}
 };
 
-
 // SECTION: AXIOMS CONFIGURATION
 const AXIOMS = {
 	'AXIOM_1': {
 		name: 'Axiome 1',
 		desc: 'Plier par une ligne passant par deux points.',
 		requiredPoints: 2,
+		prompts: [
+			'Sélectionnez le premier point.',
+			'Sélectionnez le second point pour définir la ligne de pli.'
+		],
 		getFoldLine: (points) => {
 			const [p1, p2] = points;
 			if (GEOMETRY.distSq(p1, p2) < 1e-9) return null;
@@ -176,6 +178,10 @@ const AXIOMS = {
 		name: 'Axiome 2',
 		desc: 'Plier un point sur un autre. L\'ordre de sélection détermine le côté mobile.',
 		requiredPoints: 2,
+		prompts: [
+			'Sélectionnez le point à déplacer.',
+			'Sélectionnez le point de destination.'
+		],
 		getFoldLine: (points) => {
 			const [p1, p2] = points;
 			const midPoint = new Vertex((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
@@ -189,8 +195,14 @@ const AXIOMS = {
 	},
 	'AXIOM_3': {
 		name: 'Axiome 3',
-		desc: 'Plier une ligne sur une autre (sélectionner 2 pts par ligne).',
+		desc: 'Plier une ligne sur une autre (sélectionner 2 pts ou une arête par ligne).',
 		requiredPoints: 4,
+		prompts: [
+			'Sélectionnez le premier point de la Ligne 1 (ou une arête).',
+			'Sélectionnez le second point de la Ligne 1.',
+			'Sélectionnez le premier point de la Ligne 2 (ou une arête).',
+			'Sélectionnez le second point de la Ligne 2.'
+		],
 		getFoldLine: (points) => {
 			const [l1p1, l1p2, l2p1, l2p2] = points;
 			const bisectors = GEOMETRY.getAngleBisector(l1p1, l1p2, l2p1, l2p2);
@@ -210,6 +222,11 @@ const AXIOMS = {
 		name: 'Axiome 4',
 		desc: 'Plier une ligne perpendiculairement à une autre, passant par un point.',
 		requiredPoints: 3,
+		prompts: [
+			'Sélectionnez le premier point de la ligne (ou une arête).',
+			'Sélectionnez le second point de la ligne.',
+			'Sélectionnez le point par lequel la pliure doit passer.'
+		],
 		getFoldLine: (points) => {
 			const [l1p1, l1p2, p3] = points;
 			const vec = new Vertex(l1p2.x - l1p1.x, l1p2.y - l1p1.y);
@@ -223,6 +240,12 @@ const AXIOMS = {
 		name: 'Axiome 5',
 		desc: 'Plier pour amener P2 sur la ligne L1, le long d\'une pliure passant par P1.',
 		requiredPoints: 4,
+		prompts: [
+			'Sélectionnez le point P1 (pivot de la pliure).',
+			'Sélectionnez le point P2 (à amener sur la ligne L1).',
+			'Sélectionnez le premier point de la ligne L1 (ou une arête).',
+			'Sélectionnez le second point de la ligne L1.'
+		],
 		getFoldLine: (points) => {
 			const [p1, p2, l1p1, l1p2] = points;
 			const radius = Math.sqrt(GEOMETRY.distSq(p1, p2));
@@ -246,13 +269,13 @@ const AXIOMS = {
 		name: 'Axiome 6',
 		desc: 'Plier pour amener P1 sur L1 et P2 sur L2 (non implémenté).',
 		requiredPoints: 6,
+		prompts: [ 'Non implémenté.' ],
 		getFoldLine: (points) => {
 			console.warn("Axiome 6 n'est pas implémenté en raison de sa complexité géométrique.");
 			return null;
 		}
 	}
 };
-
 
 // SECTION: FOLDING LOGIC
 const FoldEngine = {
@@ -342,7 +365,6 @@ const FoldEngine = {
 	}
 };
 
-
 // SECTION: APPLICATION STATE MANAGEMENT
 const AppState = {
 	mesh: null,
@@ -403,12 +425,16 @@ const AppState = {
 		this.mesh = cloneMesh(this.history[this.historyIndex].mesh);
 	},
 
-	selectVertex(vertex) {
+	selectVertex(vertex, isEdgeSelection = false, otherVertex = null) {
 		const requiredPoints = AXIOMS[this.currentAxiom].requiredPoints;
 		const index = this.selectedVertices.findIndex(v => v.id === vertex.id);
 
 		if (index > -1) {
 			this.selectedVertices.splice(index, 1);
+		} else if (isEdgeSelection) {
+			if (this.selectedVertices.length <= requiredPoints - 2) {
+				this.selectedVertices.push(vertex, otherVertex);
+			}
 		} else if (this.selectedVertices.length < requiredPoints) {
 			this.selectedVertices.push(vertex);
 		}
@@ -418,7 +444,6 @@ const AppState = {
 		this.selectedVertices = [];
 	}
 };
-
 
 // SECTION: UI MANAGEMENT
 const UI = {
@@ -479,49 +504,78 @@ const UI = {
 		this.elements.svg.innerHTML = '';
 		this.elements.svg.classList.toggle('xray-mode', isXRayMode);
 
+		const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+		defs.innerHTML = `
+			<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+				<polygon points="0 0, 10 3.5, 0 7" fill="${getComputedStyle(document.documentElement).getPropertyValue('--highlight-color')}" />
+			</marker>
+		`;
+		this.elements.svg.appendChild(defs);
+
+		const maxLayer = mesh.faces.reduce((max, f) => Math.max(max, f.layer), 0);
 		const facesAndPolygons = mesh.faces.map(face => {
 			const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
 			const pointsString = face.vertices.map(v => `${v.x},${v.y}`).join(' ');
 			polygon.setAttribute('points', pointsString);
 			polygon.setAttribute('data-face-id', face.id);
 			polygon.classList.add(face.isRecto ? 'recto' : 'verso');
+			
+			const brightness = 1 - (maxLayer - face.layer) * 0.05;
+			polygon.style.filter = `brightness(${brightness})`;
+
 			return { face, polygon };
 		});
 
 		facesAndPolygons.sort((a, b) => a.face.layer - b.face.layer);
 		facesAndPolygons.forEach(({ polygon }) => this.elements.svg.appendChild(polygon));
 
-		mesh.creases.forEach(crease => {
-			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-			line.setAttribute('x1', crease.p1.x);
-			line.setAttribute('y1', crease.p1.y);
-			line.setAttribute('x2', crease.p2.x);
-			line.setAttribute('y2', crease.p2.y);
-			line.classList.add('crease');
-			this.elements.svg.appendChild(line);
+		const uniqueEdges = new Map();
+		mesh.faces.forEach(face => {
+			for (let i = 0; i < face.vertices.length; i++) {
+				const v1 = face.vertices[i];
+				const v2 = face.vertices[(i + 1) % face.vertices.length];
+				const key = [v1.id, v2.id].sort().join('-');
+				if (!uniqueEdges.has(key)) {
+					uniqueEdges.set(key, { v1, v2 });
+				}
+			}
 		});
+
+		if (isXRayMode) {
+			uniqueEdges.forEach(({ v1, v2 }) => {
+				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+				line.setAttribute('x1', v1.x); line.setAttribute('y1', v1.y);
+				line.setAttribute('x2', v2.x); line.setAttribute('y2', v2.y);
+				line.classList.add('hidden-edge');
+				this.elements.svg.appendChild(line);
+			});
+		} else {
+			mesh.creases.forEach(crease => {
+				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+				line.setAttribute('x1', crease.p1.x); line.setAttribute('y1', crease.p1.y);
+				line.setAttribute('x2', crease.p2.x); line.setAttribute('y2', crease.p2.y);
+				line.classList.add('crease');
+				this.elements.svg.appendChild(line);
+			});
+		}
 
 		const drawPreviewLine = (p1, p2, className) => {
 			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-			line.setAttribute('x1', p1.x);
-			line.setAttribute('y1', p1.y);
-			line.setAttribute('x2', p2.x);
-			line.setAttribute('y2', p2.y);
+			line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+			line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
 			line.classList.add(className);
 			this.elements.svg.appendChild(line);
 		};
 
 		const axiomInfo = AXIOMS[currentAxiom];
 		if (selectedVertices.length > 0) {
-			if (currentAxiom === 'AXIOM_3' && selectedVertices.length >= 2) {
+			if ((currentAxiom === 'AXIOM_3' || currentAxiom === 'AXIOM_4' || currentAxiom === 'AXIOM_5') && selectedVertices.length >= 2) {
 				drawPreviewLine(selectedVertices[0], selectedVertices[1], 'construction-line');
-				if (selectedVertices.length >= 4) {
+				if (currentAxiom === 'AXIOM_3' && selectedVertices.length >= 4) {
+					drawPreviewLine(selectedVertices[2], selectedVertices[3], 'construction-line');
+				} else if (currentAxiom === 'AXIOM_5' && selectedVertices.length >= 4) {
 					drawPreviewLine(selectedVertices[2], selectedVertices[3], 'construction-line');
 				}
-			} else if (currentAxiom === 'AXIOM_4' && selectedVertices.length >= 2) {
-				drawPreviewLine(selectedVertices[0], selectedVertices[1], 'construction-line');
-			} else if (currentAxiom === 'AXIOM_5' && selectedVertices.length >= 3) {
-				drawPreviewLine(selectedVertices[2], selectedVertices[3], 'construction-line');
 			}
 		}
 
@@ -529,8 +583,45 @@ const UI = {
 			const foldLine = axiomInfo.getFoldLine(selectedVertices);
 			if (foldLine) {
 				drawPreviewLine(foldLine.p1, foldLine.p2, 'preview-line');
+				
+				let mobilePoint;
+				const [p1, p2] = selectedVertices;
+				switch (currentAxiom) {
+					case 'AXIOM_2': mobilePoint = p1; break;
+					case 'AXIOM_3': mobilePoint = p1; break;
+					case 'AXIOM_4': mobilePoint = selectedVertices[2]; break;
+					case 'AXIOM_5': mobilePoint = p2; break;
+					default: mobilePoint = p1; break;
+				}
+
+				if (mobilePoint) {
+					const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLine.p1, foldLine.p2);
+					const reflectedPoint = GEOMETRY.reflectPoint(mobilePoint, foldLine.p1, foldLine.p2);
+					if (Math.abs(mobileSideSign) > 1e-9) {
+						const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+						const midFold = { x: (mobilePoint.x + reflectedPoint.x) / 2, y: (mobilePoint.y + reflectedPoint.y) / 2 };
+						const control = { 
+							x: midFold.x - (mobilePoint.y - midFold.y) * 0.5,
+							y: midFold.y + (mobilePoint.x - midFold.x) * 0.5
+						};
+						path.setAttribute('d', `M ${mobilePoint.x} ${mobilePoint.y} Q ${control.x} ${control.y} ${reflectedPoint.x} ${reflectedPoint.y}`);
+						path.classList.add('fold-arrow');
+						path.style.fill = 'none';
+						this.elements.svg.appendChild(path);
+					}
+				}
 			}
 		}
+
+		uniqueEdges.forEach(({ v1, v2 }) => {
+			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+			line.setAttribute('x1', v1.x); line.setAttribute('y1', v1.y);
+			line.setAttribute('x2', v2.x); line.setAttribute('y2', v2.y);
+			line.setAttribute('data-v1-id', v1.id);
+			line.setAttribute('data-v2-id', v2.id);
+			line.classList.add('edge-handle');
+			this.elements.svg.appendChild(line);
+		});
 
 		mesh.vertices.forEach(vertex => {
 			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -550,7 +641,9 @@ const UI = {
 		this.elements.faceCountEl.textContent = mesh.faces.length;
 		this.elements.vertexCountEl.textContent = mesh.vertices.length;
 		this.elements.currentToolNameEl.textContent = axiomInfo.name;
-		this.elements.currentToolDescEl.textContent = axiomInfo.desc;
+		
+		const prompt = axiomInfo.prompts[selectedVertices.length] || axiomInfo.desc;
+		this.elements.currentToolDescEl.textContent = prompt;
 
 		this.elements.foldButton.disabled = isProcessing || selectedVertices.length !== axiomInfo.requiredPoints;
 		this.elements.flipButton.disabled = isProcessing;
@@ -571,7 +664,6 @@ const UI = {
 		});
 	}
 };
-
 
 // SECTION: APPLICATION CONTROLLER
 const AppController = {
@@ -635,11 +727,22 @@ const AppController = {
 	handleSVGClick(event) {
 		if (AppState.isProcessing || AppState.dragOccurred) return;
 		
-		if (event.target.classList.contains('vertex-handle')) {
+		const targetClassList = event.target.classList;
+
+		if (targetClassList.contains('vertex-handle')) {
 			const vertexId = event.target.getAttribute('data-vertex-id');
 			const vertex = AppState.mesh.vertices.find(v => v.id === vertexId);
 			if (vertex) {
 				AppState.selectVertex(vertex);
+				UI.render(AppState);
+			}
+		} else if (targetClassList.contains('edge-handle')) {
+			const v1Id = event.target.getAttribute('data-v1-id');
+			const v2Id = event.target.getAttribute('data-v2-id');
+			const v1 = AppState.mesh.vertices.find(v => v.id === v1Id);
+			const v2 = AppState.mesh.vertices.find(v => v.id === v2Id);
+			if (v1 && v2) {
+				AppState.selectVertex(v1, true, v2);
 				UI.render(AppState);
 			}
 		}
