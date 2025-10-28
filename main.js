@@ -169,6 +169,52 @@ const GEOMETRY = {
 		return (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
 	},
 
+	getClosestPointOnLineSegment(p, a, b) {
+		const l2 = this.distSq(a, b);
+		if (l2 < EPSILON) return a;
+		let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+		t = Math.max(0, Math.min(1, t));
+		return new Vertex(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y));
+	},
+
+	getInfiniteLineIntersection(p1, p2, p3, p4) {
+		const den = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+		if (Math.abs(den) < EPSILON) return null;
+		const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / den;
+		return new Vertex(p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y));
+	},
+	
+    isPointInPolygon(point, polygon) {
+        let isInside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i].x, yi = polygon[i].y;
+            const xj = polygon[j].x, yj = polygon[j].y;
+            const intersect = ((yi > point.y) !== (yj > point.y))
+                && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+            if (intersect) isInside = !isInside;
+        }
+        return isInside;
+    },
+	
+	polygonsIntersect(poly1, poly2) {
+		for (let i = 0; i < poly1.length; i++) {
+			if (this.isPointInPolygon(poly1[i], poly2)) return true;
+		}
+		for (let i = 0; i < poly2.length; i++) {
+			if (this.isPointInPolygon(poly2[i], poly1)) return true;
+		}
+		for (let i = 0; i < poly1.length; i++) {
+			const p1 = poly1[i];
+			const p2 = poly1[(i + 1) % poly1.length];
+			for (let j = 0; j < poly2.length; j++) {
+				const p3 = poly2[j];
+				const p4 = poly2[(j + 1) % poly2.length];
+				if (this.getLineIntersection(p1, p2, p3, p4)) return true;
+			}
+		}
+		return false;
+	},
+	
 	getLineCircleIntersection(lineP1, lineP2, circleCenter, radius) {
 		const d = { x: lineP2.x - lineP1.x, y: lineP2.y - lineP1.y };
 		const f = { x: lineP1.x - circleCenter.x, y: lineP1.y - circleCenter.y };
@@ -193,11 +239,17 @@ const GEOMETRY = {
 		if (isFinite(t2) && Math.abs(discriminant) > EPSILON) solutions.push(new Vertex(lineP1.x + t2 * d.x, lineP1.y + t2 * d.y));
 
 		return solutions;
-	}
+	},
 };
 
 // SECTION: AXIOMS CONFIGURATION
 const AXIOMS = {
+	'TOOL_ADD_POINT': {
+		nameKey: 'addPointToolName',
+		descKey: 'addPointToolDesc',
+		requiredPoints: 0,
+		prompts: () => 'addPointToolPrompt1',
+	},
 	'AXIOM_1': {
 		nameKey: 'axiom1Name',
 		descKey: 'axiom1Desc',
@@ -345,10 +397,63 @@ const AXIOMS = {
 const FoldEngine = {
 	performFold(mesh, foldLine, mobilePoint) {
 		const { p1: foldLineP1, p2: foldLineP2 } = foldLine;
-		const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
 
+		const activeFace = mesh.faces
+			.slice()
+			.sort((a, b) => b.layer - a.layer)
+			.find(f => GEOMETRY.isPointInPolygon(mobilePoint, f.vertices));
+
+		if (!activeFace) {
+			return { mesh: null, error: t('errorInvalidFold') };
+		}
+
+		const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
 		if (Math.abs(mobileSideSign) < EPSILON) {
 			return { mesh: null, error: t('errorMobilePointOnFoldLine') };
+		}
+		
+		const edgeToFaces = new Map();
+		mesh.faces.forEach(face => {
+			for (let i = 0; i < face.vertices.length; i++) {
+				const v1 = face.vertices[i];
+				const v2 = face.vertices[(i + 1) % face.vertices.length];
+				const key = [v1.id, v2.id].sort().join('-');
+				if (!edgeToFaces.has(key)) edgeToFaces.set(key, []);
+				edgeToFaces.get(key).push(face.id);
+			}
+		});
+		
+		const faceIdToFace = new Map(mesh.faces.map(f => [f.id, f]));
+		const originalMobileIds = new Set();
+		const queue = [activeFace.id];
+		const visited = new Set([activeFace.id]);
+
+		while (queue.length > 0) {
+			const currentFaceId = queue.shift();
+			originalMobileIds.add(currentFaceId);
+			const currentFace = faceIdToFace.get(currentFaceId);
+			if (!currentFace) continue;
+
+			for (let i = 0; i < currentFace.vertices.length; i++) {
+				const v1 = currentFace.vertices[i];
+				const v2 = currentFace.vertices[(i + 1) % currentFace.vertices.length];
+				const key = [v1.id, v2.id].sort().join('-');
+				const neighborFaceIds = edgeToFaces.get(key) || [];
+				
+				for (const neighborId of neighborFaceIds) {
+					if (neighborId !== currentFaceId && !visited.has(neighborId)) {
+						visited.add(neighborId);
+						const neighborFace = faceIdToFace.get(neighborId);
+						if (neighborFace) {
+							const centroidX = neighborFace.vertices.reduce((sum, v) => sum + v.x, 0) / neighborFace.vertices.length;
+							const centroidY = neighborFace.vertices.reduce((sum, v) => sum + v.y, 0) / neighborFace.vertices.length;
+							if (GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2) * mobileSideSign > -EPSILON) {
+								queue.push(neighborId);
+							}
+						}
+					}
+				}
+			}
 		}
 
 		const newMesh = new Mesh();
@@ -358,9 +463,13 @@ const FoldEngine = {
 			const poly = face.vertices;
 			const polySides = poly.map(p => GEOMETRY.getLineSide(p, foldLineP1, foldLineP2));
 			
-			if (polySides.every(s => Math.sign(s) === Math.sign(mobileSideSign) || Math.abs(s) < EPSILON) || 
-				polySides.every(s => Math.sign(s) !== Math.sign(mobileSideSign) || Math.abs(s) < EPSILON)) {
-				return [new Face([...face.vertices], face.layer, face.isRecto)];
+			const allOnMobileSide = polySides.every(s => s * mobileSideSign >= -EPSILON);
+			const allOnStaticSide = polySides.every(s => s * mobileSideSign <= EPSILON);
+
+			if (allOnMobileSide || allOnStaticSide) {
+				const newFace = new Face([...face.vertices], face.layer, face.isRecto);
+				newFace.parentId = face.id;
+				return [newFace];
 			}
 			
 			const newPoly1 = [], newPoly2 = [];
@@ -371,10 +480,10 @@ const FoldEngine = {
 				const currentSide = polySides[i];
 				const nextSide = polySides[(i + 1) % poly.length];
 
-				if (currentSide * mobileSideSign >= 0) newPoly1.push(currentPoint);
-				else newPoly2.push(currentPoint);
+				if (currentSide * mobileSideSign >= -EPSILON) newPoly1.push(currentPoint);
+				if (currentSide * mobileSideSign <= EPSILON) newPoly2.push(currentPoint);
 
-				if (currentSide * nextSide < 0) {
+				if (currentSide * nextSide < -EPSILON) {
 					const intersection = GEOMETRY.getLineIntersection(currentPoint, nextPoint, foldLineP1, foldLineP2);
 					if (intersection) {
 						const key = `${intersection.x.toFixed(5)},${intersection.y.toFixed(5)}`;
@@ -388,17 +497,25 @@ const FoldEngine = {
 				}
 			}
 
-			const fixPolygonOrder = (poly, refPoint) => {
+			const fixPolygonOrder = (poly) => {
 				if (poly.length < 3) return poly;
 				let cx = 0; let cy = 0;
 				poly.forEach(p => { cx += p.x; cy += p.y; });
 				cx /= poly.length; cy /= poly.length;
 				return poly.sort((a,b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
 			};
-
+			
 			const resultingFaces = [];
-			if (newPoly1.length > 2) resultingFaces.push(new Face(fixPolygonOrder(newPoly1), face.layer, face.isRecto));
-			if (newPoly2.length > 2) resultingFaces.push(new Face(fixPolygonOrder(newPoly2), face.layer, face.isRecto));
+			if (newPoly1.length > 2) {
+				const f = new Face(fixPolygonOrder(newPoly1), face.layer, face.isRecto);
+				f.parentId = face.id;
+				resultingFaces.push(f);
+			}
+			if (newPoly2.length > 2) {
+				const f = new Face(fixPolygonOrder(newPoly2), face.layer, face.isRecto);
+				f.parentId = face.id;
+				resultingFaces.push(f);
+			}
 			return resultingFaces;
 		};
 
@@ -406,34 +523,96 @@ const FoldEngine = {
 			const splitResults = splitFace(face);
 			newMesh.faces.push(...splitResults);
 		});
-
-		const allVertices = new Set();
-		newMesh.faces.forEach(f => f.vertices.forEach(v => allVertices.add(v)));
-		newMesh.vertices = Array.from(allVertices);
-
-		const highestLayer = newMesh.faces.length > 0 ? Math.max(...newMesh.faces.map(f => f.layer)) : 0;
-		const mobileVertices = new Set();
+		
+		const staticFaces = [];
+		const mobileFaces = [];
 		
 		newMesh.faces.forEach(face => {
 			const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
 			const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
-			
-			if (GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2) * mobileSideSign > EPSILON) {
-				face.layer = highestLayer + 1;
-				face.isRecto = !face.isRecto;
-				face.vertices.forEach(v => mobileVertices.add(v));
+			const isGeometricallyMobile = GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2) * mobileSideSign > EPSILON;
+			const isLogicallyMobile = originalMobileIds.has(face.parentId);
+
+			if (isGeometricallyMobile && isLogicallyMobile) {
+				mobileFaces.push(face);
+			} else {
+				staticFaces.push(face);
 			}
 		});
+
+		const reflectedMobileGeometries = mobileFaces.map(face => ({
+			face: face,
+			reflectedVertices: face.vertices.map(v => GEOMETRY.reflectPoint(v, foldLineP1, foldLineP2))
+		}));
 		
-		mobileVertices.forEach(v => {
-			const reflected = GEOMETRY.reflectPoint(v, foldLineP1, foldLineP2);
-			v.x = reflected.x;
-			v.y = reflected.y;
+		let targetLayer = -1;
+		for (const mobile of reflectedMobileGeometries) {
+			for (const staticF of staticFaces) {
+				if (GEOMETRY.polygonsIntersect(mobile.reflectedVertices, staticF.vertices)) {
+					const originalMobileLayer = faceIdToFace.get(mobile.face.parentId).layer;
+					if (originalMobileLayer < staticF.layer) {
+						return { mesh: null, error: t('errorInvalidFold') };
+					}
+					targetLayer = Math.max(targetLayer, staticF.layer);
+				}
+			}
+		}
+
+		const mobileOriginalLayers = Array.from(originalMobileIds).map(id => faceIdToFace.get(id).layer);
+		const minOriginalMobileLayer = Math.min(...mobileOriginalLayers);
+
+		const reflectedVerticesMap = new Map();
+		mobileFaces.forEach(face => {
+			const originalFace = faceIdToFace.get(face.parentId);
+			const relativeLayer = originalFace.layer - minOriginalMobileLayer;
+			face.layer = (targetLayer + 1) + relativeLayer;
+			face.isRecto = !originalFace.isRecto;
+
+			const newFaceVertices = [];
+			face.vertices.forEach(v => {
+				const vKey = `${v.x.toFixed(5)},${v.y.toFixed(5)}`;
+				if (reflectedVerticesMap.has(vKey)) {
+					newFaceVertices.push(reflectedVerticesMap.get(vKey));
+				} else {
+					const reflected = GEOMETRY.reflectPoint(v, foldLineP1, foldLineP2);
+					const newV = new Vertex(reflected.x, reflected.y);
+					newV.id = v.id; 
+					reflectedVerticesMap.set(vKey, newV);
+					newFaceVertices.push(newV);
+				}
+			});
+			face.vertices = newFaceVertices;
 		});
+
+		newMesh.faces = [...staticFaces, ...mobileFaces];
+		
+		const allVerticesMap = new Map();
+
+		newMesh.faces.forEach(f => f.vertices.forEach(v => {
+			if (!allVerticesMap.has(v.id)) {
+				allVerticesMap.set(v.id, v);
+			}
+		}));
+
+		mesh.vertices.forEach(originalVertex => {
+			if (!allVerticesMap.has(originalVertex.id)) {
+				const side = GEOMETRY.getLineSide(originalVertex, foldLineP1, foldLineP2);
+				if (side * mobileSideSign > EPSILON) {
+					const reflected = GEOMETRY.reflectPoint(originalVertex, foldLineP1, foldLineP2);
+					const newV = new Vertex(reflected.x, reflected.y);
+					newV.id = originalVertex.id;
+					allVerticesMap.set(newV.id, newV);
+				} else {
+					allVerticesMap.set(originalVertex.id, originalVertex);
+				}
+			}
+		});
+
+		newMesh.vertices = Array.from(allVerticesMap.values());
 
 		newMesh.creases = [...mesh.creases, foldLine];
 		return { mesh: newMesh, error: null };
-	}
+	},
 };
 
 // SECTION: APPLICATION STATE MANAGEMENT
@@ -452,6 +631,9 @@ const AppState = {
 	panStartPoint: { x: 0, y: 0 },
 	dragOccurred: false,
 	currentLanguage: 'en',
+	selectionCandidates: [],
+	selectionCandidateIndex: 0,
+	previewPoint: null,
 
 	init() {
 		const m = new Mesh();
@@ -533,6 +715,7 @@ const UI = {
 			resetButton: document.getElementById('reset-button'),
 			xrayButton: document.getElementById('xray-button'),
 			axiomButtons: {
+				'TOOL_ADD_POINT': document.getElementById('add-point-button'),
 				'AXIOM_1': document.getElementById('axiom1-button'),
 				'AXIOM_2': document.getElementById('axiom2-button'),
 				'AXIOM_3': document.getElementById('axiom3-button'),
@@ -554,7 +737,7 @@ const UI = {
 		
 		this.elements.svg.addEventListener('click', (e) => controller.handleSVGClick(e));
 		this.elements.svg.addEventListener('mousedown', (e) => controller.handlePanStart(e));
-		this.elements.svg.addEventListener('mousemove', (e) => controller.handlePanMove(e));
+		this.elements.svg.addEventListener('mousemove', (e) => controller.handleMouseMove(e));
 		this.elements.svg.addEventListener('mouseup', () => controller.handlePanEnd());
 		this.elements.svg.addEventListener('mouseleave', () => controller.handlePanEnd());
 		this.elements.svg.addEventListener('wheel', (e) => controller.handleZoom(e));
@@ -580,7 +763,9 @@ const UI = {
 	},
 
 	render(state) {
-		const { mesh, selectedVertices, currentAxiom, history, historyIndex, isProcessing, isXRayMode, viewBox } = state;
+		const { mesh, selectedVertices, currentAxiom, history, historyIndex, isProcessing, isXRayMode, viewBox, previewPoint } = state;
+
+		const scaleFactor = viewBox.width / this.elements.svg.clientWidth;
 
 		this.elements.svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
 		this.elements.svg.innerHTML = '';
@@ -604,6 +789,7 @@ const UI = {
 			
 			const brightness = 1 - (maxLayer - face.layer) * 0.05;
 			polygon.style.filter = `brightness(${brightness})`;
+			polygon.style.strokeWidth = `${0.5 * scaleFactor}px`;
 
 			return { face, polygon };
 		});
@@ -629,6 +815,7 @@ const UI = {
 				line.setAttribute('x1', v1.x); line.setAttribute('y1', v1.y);
 				line.setAttribute('x2', v2.x); line.setAttribute('y2', v2.y);
 				line.classList.add('hidden-edge');
+				line.style.strokeWidth = `${0.8 * scaleFactor}px`;
 				this.elements.svg.appendChild(line);
 			});
 		} else {
@@ -637,6 +824,7 @@ const UI = {
 				line.setAttribute('x1', crease.p1.x); line.setAttribute('y1', crease.p1.y);
 				line.setAttribute('x2', crease.p2.x); line.setAttribute('y2', crease.p2.y);
 				line.classList.add('crease');
+				line.style.strokeWidth = `${1 * scaleFactor}px`;
 				this.elements.svg.appendChild(line);
 			});
 		}
@@ -646,6 +834,8 @@ const UI = {
 			line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
 			line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
 			line.classList.add(className);
+			const baseWidth = className === 'preview-line' ? 2 : 1.5;
+			line.style.strokeWidth = `${baseWidth * scaleFactor}px`;
 			this.elements.svg.appendChild(line);
 		};
 
@@ -661,7 +851,7 @@ const UI = {
 			}
 		}
 
-		if (selectedVertices.length === axiomInfo.requiredPoints) {
+		if (axiomInfo.requiredPoints > 0 && selectedVertices.length === axiomInfo.requiredPoints) {
 			const foldLine = axiomInfo.getFoldLine(selectedVertices);
 			if (foldLine) {
 				drawPreviewLine(foldLine.p1, foldLine.p2, 'preview-line');
@@ -689,6 +879,7 @@ const UI = {
 						path.setAttribute('d', `M ${mobilePoint.x} ${mobilePoint.y} Q ${control.x} ${control.y} ${reflectedPoint.x} ${reflectedPoint.y}`);
 						path.classList.add('fold-arrow');
 						path.style.fill = 'none';
+						path.style.strokeWidth = `${2 * scaleFactor}px`;
 						this.elements.svg.appendChild(path);
 					}
 				}
@@ -702,68 +893,99 @@ const UI = {
 			line.setAttribute('data-v1-id', v1.id);
 			line.setAttribute('data-v2-id', v2.id);
 			line.classList.add('edge-handle');
+			line.style.strokeWidth = `${10 * scaleFactor}px`;
 			this.elements.svg.appendChild(line);
 		});
+
+		if (previewPoint) {
+			if (previewPoint.snapLine) {
+				drawPreviewLine(previewPoint.snapLine.p1, previewPoint.snapLine.p2, 'construction-line');
+			}
+			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			circle.setAttribute('cx', previewPoint.x);
+			circle.setAttribute('cy', previewPoint.y);
+			circle.setAttribute('r', 6 * scaleFactor);
+			circle.style.fill = 'var(--highlight-color)';
+			circle.style.opacity = '0.7';
+			circle.style.pointerEvents = 'none';
+			this.elements.svg.appendChild(circle);
+		}
 
 		mesh.vertices.forEach(vertex => {
 			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 			circle.setAttribute('cx', vertex.x);
 			circle.setAttribute('cy', vertex.y);
-			circle.setAttribute('r', 6);
+			
+			const isSelected = selectedVertices.find(v => v.id === vertex.id);
+			const radius = isSelected ? 8 : 6;
+			circle.setAttribute('r', radius * scaleFactor);
+			
 			circle.setAttribute('data-vertex-id', vertex.id);
 			circle.classList.add('vertex-handle');
-			if (selectedVertices.find(v => v.id === vertex.id)) {
+			
+			const baseStrokeWidth = 2;
+			circle.style.strokeWidth = `${baseStrokeWidth * scaleFactor}px`;
+
+			if (isSelected) {
 				circle.classList.add('selected');
 			}
+
+			circle.addEventListener('mouseenter', () => circle.setAttribute('r', 8 * scaleFactor));
+			circle.addEventListener('mouseleave', () => circle.setAttribute('r', (isSelected ? 8 : 6) * scaleFactor));
+
 			this.elements.svg.appendChild(circle);
 		});
 
 		const drawLabel = (text, x, y, offsetX = 15, offsetY = -15) => {
 			const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-			label.setAttribute('x', x + offsetX);
-			label.setAttribute('y', y + offsetY);
+			label.setAttribute('x', x + offsetX * scaleFactor);
+			label.setAttribute('y', y + offsetY * scaleFactor);
 			label.textContent = text;
 			label.classList.add('selection-label');
+			label.style.fontSize = `${16 * scaleFactor}px`;
+			label.style.strokeWidth = `${0.5 * scaleFactor}px`;
 			this.elements.svg.appendChild(label);
 		};
 
-		switch (currentAxiom) {
-			case 'AXIOM_1':
-			case 'AXIOM_2':
-				if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
-				if (selectedVertices.length > 1) drawLabel('P2', selectedVertices[1].x, selectedVertices[1].y);
-				break;
-			case 'AXIOM_3':
-				if (selectedVertices.length >= 2) {
-					const midX = (selectedVertices[0].x + selectedVertices[1].x) / 2;
-					const midY = (selectedVertices[0].y + selectedVertices[1].y) / 2;
-					drawLabel('L1', midX, midY);
-				}
-				if (selectedVertices.length >= 4) {
-					const midX = (selectedVertices[2].x + selectedVertices[3].x) / 2;
-					const midY = (selectedVertices[2].y + selectedVertices[3].y) / 2;
-					drawLabel('L2', midX, midY);
-				}
-				break;
-			case 'AXIOM_4':
-				if (selectedVertices.length >= 2) {
-					const midX = (selectedVertices[0].x + selectedVertices[1].x) / 2;
-					const midY = (selectedVertices[0].y + selectedVertices[1].y) / 2;
-					drawLabel('L', midX, midY);
-				}
-				if (selectedVertices.length >= 3) {
-					drawLabel('P', selectedVertices[2].x, selectedVertices[2].y);
-				}
-				break;
-			case 'AXIOM_5':
-				if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
-				if (selectedVertices.length > 1) drawLabel('P2', selectedVertices[1].x, selectedVertices[1].y);
-				if (selectedVertices.length >= 4) {
-					const midX = (selectedVertices[2].x + selectedVertices[3].x) / 2;
-					const midY = (selectedVertices[2].y + selectedVertices[3].y) / 2;
-					drawLabel('L', midX, midY);
-				}
-				break;
+		if (axiomInfo.requiredPoints > 0) {
+			switch (currentAxiom) {
+				case 'AXIOM_1':
+				case 'AXIOM_2':
+					if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
+					if (selectedVertices.length > 1) drawLabel('P2', selectedVertices[1].x, selectedVertices[1].y);
+					break;
+				case 'AXIOM_3':
+					if (selectedVertices.length >= 2) {
+						const midX = (selectedVertices[0].x + selectedVertices[1].x) / 2;
+						const midY = (selectedVertices[0].y + selectedVertices[1].y) / 2;
+						drawLabel('L1', midX, midY);
+					}
+					if (selectedVertices.length >= 4) {
+						const midX = (selectedVertices[2].x + selectedVertices[3].x) / 2;
+						const midY = (selectedVertices[2].y + selectedVertices[3].y) / 2;
+						drawLabel('L2', midX, midY);
+					}
+					break;
+				case 'AXIOM_4':
+					if (selectedVertices.length >= 2) {
+						const midX = (selectedVertices[0].x + selectedVertices[1].x) / 2;
+						const midY = (selectedVertices[0].y + selectedVertices[1].y) / 2;
+						drawLabel('L', midX, midY);
+					}
+					if (selectedVertices.length >= 3) {
+						drawLabel('P', selectedVertices[2].x, selectedVertices[2].y);
+					}
+					break;
+				case 'AXIOM_5':
+					if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
+					if (selectedVertices.length > 1) drawLabel('P2', selectedVertices[1].x, selectedVertices[1].y);
+					if (selectedVertices.length >= 4) {
+						const midX = (selectedVertices[2].x + selectedVertices[3].x) / 2;
+						const midY = (selectedVertices[2].y + selectedVertices[3].y) / 2;
+						drawLabel('L', midX, midY);
+					}
+					break;
+			}
 		}
 
 		this.elements.selectedPointsCountEl.textContent = selectedVertices.length;
@@ -775,7 +997,7 @@ const UI = {
 		const prompt = t(axiomInfo.prompts(selectedVertices));
 		this.elements.currentToolDescEl.innerHTML = `<strong>${t('instructionLabel')}:</strong> ${prompt}<hr>${t(axiomInfo.descKey)}`;
 
-		this.elements.foldButton.disabled = isProcessing || selectedVertices.length !== axiomInfo.requiredPoints;
+		this.elements.foldButton.disabled = isProcessing || currentAxiom === 'TOOL_ADD_POINT' || selectedVertices.length !== axiomInfo.requiredPoints;
 		this.elements.flipButton.disabled = isProcessing;
 		this.elements.undoButton.disabled = isProcessing || historyIndex <= 0;
 		this.elements.redoButton.disabled = isProcessing || historyIndex >= history.length - 1;
@@ -865,6 +1087,127 @@ const AppController = {
 		this.saveStateToLocalStorage();
 	},
 
+	handleMouseMove(event) {
+		if (AppState.isPanning) {
+			event.preventDefault();
+			AppState.dragOccurred = true;
+
+			const dx = event.clientX - AppState.panStartPoint.x;
+			const dy = event.clientY - AppState.panStartPoint.y;
+			
+			const scale = AppState.viewBox.width / UI.elements.svg.clientWidth;
+
+			AppState.viewBox.x -= dx * scale;
+			AppState.viewBox.y -= dy * scale;
+
+			AppState.panStartPoint = { x: event.clientX, y: event.clientY };
+			
+			UI.render(AppState);
+			return;
+		}
+
+		if (AppState.currentAxiom !== 'TOOL_ADD_POINT') {
+			if (AppState.previewPoint) {
+				AppState.previewPoint = null;
+				UI.render(AppState);
+			}
+			return;
+		}
+	
+		const svgRect = UI.elements.svg.getBoundingClientRect();
+		const scale = AppState.viewBox.width / svgRect.width;
+		const mouseX = AppState.viewBox.x + (event.clientX - svgRect.left) * scale;
+		const mouseY = AppState.viewBox.y + (event.clientY - svgRect.top) * scale;
+	
+		const potentialPoint = this.getSnapPoint(mouseX, mouseY, event.shiftKey, scale);
+		const isInside = AppState.mesh.faces.some(face => GEOMETRY.isPointInPolygon(potentialPoint, face.vertices));
+
+		if (isInside) {
+			AppState.previewPoint = potentialPoint;
+		} else {
+			AppState.previewPoint = null;
+		}
+		
+		UI.render(AppState);
+	},
+
+	getSnapPoint(x, y, shiftPressed, scale) {
+		if (shiftPressed) return { x, y, snapLine: null };
+
+		const SNAP_RADIUS_SQ = (15 * scale) ** 2;
+		let bestSnap = { x, y, snapLine: null, distSq: Infinity };
+		const mousePos = { x, y };
+
+		const updateBestSnap = (point, line, distSq) => {
+			if (point && distSq < bestSnap.distSq && distSq < SNAP_RADIUS_SQ) {
+				bestSnap = { x: point.x, y: point.y, snapLine: line, distSq };
+			}
+		};
+		
+		const allEdges = new Map();
+		AppState.mesh.faces.forEach(face => {
+			for (let i = 0; i < face.vertices.length; i++) {
+				const v1 = face.vertices[i];
+				const v2 = face.vertices[(i + 1) % face.vertices.length];
+				const key = [v1.id, v2.id].sort().join('-');
+				if (!allEdges.has(key)) allEdges.set(key, { p1: v1, p2: v2 });
+			}
+		});
+
+		const faceDiagonals = [];
+		AppState.mesh.faces.forEach(face => {
+			const v = face.vertices;
+			if (v.length > 3) {
+				for (let i = 0; i < v.length; i++) {
+					for (let j = i + 2; j < v.length; j++) {
+						if (i === 0 && j === v.length - 1) continue;
+						faceDiagonals.push({ p1: v[i], p2: v[j] });
+					}
+				}
+			}
+		});
+		
+		const constructionLines = [
+			...Array.from(allEdges.values()), 
+			...AppState.mesh.creases,
+			...faceDiagonals
+		];
+
+		const candidatePoints = new Set();
+		
+		AppState.mesh.vertices.forEach(v => candidatePoints.add(v));
+		
+		constructionLines.forEach(line => {
+			const midPoint = { x: (line.p1.x + line.p2.x) / 2, y: (line.p1.y + line.p2.y) / 2 };
+			candidatePoints.add(midPoint);
+		});
+
+		for (let i = 0; i < constructionLines.length; i++) {
+			for (let j = i + 1; j < constructionLines.length; j++) {
+				const intersection = GEOMETRY.getInfiniteLineIntersection(
+					constructionLines[i].p1, constructionLines[i].p2, 
+					constructionLines[j].p1, constructionLines[j].p2
+				);
+				if (intersection) {
+					candidatePoints.add(intersection);
+				}
+			}
+		}
+
+		candidatePoints.forEach(p => {
+			updateBestSnap(p, null, GEOMETRY.distSq(mousePos, p));
+		});
+
+		if (bestSnap.distSq === Infinity) {
+			constructionLines.forEach(line => {
+				const closest = GEOMETRY.getClosestPointOnLineSegment(mousePos, line.p1, line.p2);
+				updateBestSnap(closest, line, GEOMETRY.distSq(mousePos, closest));
+			});
+		}
+		
+		return { x: bestSnap.x, y: bestSnap.y, snapLine: bestSnap.snapLine };
+	},
+	
 	handlePanEnd() {
 		AppState.isPanning = false;
 	},
@@ -887,7 +1230,7 @@ const AppController = {
 		AppState.viewBox.x = viewBoxMouseX - mouseX * (AppState.viewBox.width / svgRect.width);
 		AppState.viewBox.y = viewBoxMouseY - mouseY * (AppState.viewBox.height / svgRect.height);
 
-		UI.elements.svg.setAttribute('viewBox', `${AppState.viewBox.x} ${AppState.viewBox.y} ${AppState.viewBox.width} ${AppState.viewBox.height}`);
+		UI.render(AppState);
 		this.saveStateToLocalStorage();
 	},
 
@@ -895,16 +1238,31 @@ const AppController = {
 		if (AppState.isProcessing || AppState.dragOccurred) return;
 		UI.displayError('');
 		
-		const targetClassList = event.target.classList;
+		const svgRect = UI.elements.svg.getBoundingClientRect();
+		const scale = AppState.viewBox.width / svgRect.width;
+		const clickX = AppState.viewBox.x + (event.clientX - svgRect.left) * scale;
+		const clickY = AppState.viewBox.y + (event.clientY - svgRect.top) * scale;
+		
+		if (AppState.currentAxiom === 'TOOL_ADD_POINT') {
+			const pointToAdd = AppState.previewPoint ? new Vertex(AppState.previewPoint.x, AppState.previewPoint.y) : new Vertex(clickX, clickY);
+			const isInside = AppState.mesh.faces.some(face => GEOMETRY.isPointInPolygon(pointToAdd, face.vertices));
 
-		if (targetClassList.contains('vertex-handle')) {
-			const vertexId = event.target.getAttribute('data-vertex-id');
-			const vertex = AppState.mesh.vertices.find(v => v.id === vertexId);
-			if (vertex) {
-				AppState.selectVertex(vertex);
+			if (isInside) {
+				const newMesh = cloneMesh(AppState.mesh);
+				newMesh.vertices.push(pointToAdd);
+				
+				AppState.mesh = newMesh;
+				const action = { key: 'historyAddPoint' };
+				AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
+				AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: action });
+				AppState.historyIndex++;
+				this.saveStateToLocalStorage();
 				UI.render(AppState);
 			}
-		} else if (targetClassList.contains('edge-handle')) {
+			return;
+		}
+
+		if (event.target.classList.contains('edge-handle')) {
 			const v1Id = event.target.getAttribute('data-v1-id');
 			const v2Id = event.target.getAttribute('data-v2-id');
 			const v1 = AppState.mesh.vertices.find(v => v.id === v1Id);
@@ -913,13 +1271,61 @@ const AppController = {
 				AppState.selectVertex(v1, true, v2);
 				UI.render(AppState);
 			}
+			return;
 		}
-	},
 
+		const CLICK_RADIUS_SQ = (10 * scale) ** 2;
+		const candidates = AppState.mesh.vertices.filter(v =>
+			GEOMETRY.distSq(v, { x: clickX, y: clickY }) < CLICK_RADIUS_SQ
+		);
+
+		if (candidates.length > 0) {
+			candidates.sort((a, b) => a.id.localeCompare(b.id));
+
+			const isSameSpot = AppState.selectionCandidates.length === candidates.length &&
+				AppState.selectionCandidates.every((c, i) => c.id === candidates[i].id);
+
+			if (isSameSpot) {
+				AppState.selectionCandidateIndex = (AppState.selectionCandidateIndex + 1);
+			} else {
+				AppState.selectionCandidateIndex = 0;
+				AppState.selectionCandidates = candidates;
+			}
+			
+			const vertexToSelect = AppState.selectionCandidates[AppState.selectionCandidateIndex % AppState.selectionCandidates.length];
+			if(vertexToSelect) {
+				AppState.selectVertex(vertexToSelect);
+			}
+		}
+		
+		UI.render(AppState);
+	},
+	
+	isSegmentAnEdge(p1, p2, mesh) {
+		for (const face of mesh.faces) {
+			for (let i = 0; i < face.vertices.length; i++) {
+				const v1 = face.vertices[i];
+				const v2 = face.vertices[(i + 1) % face.vertices.length];
+				if ((v1.id === p1.id && v2.id === p2.id) || (v1.id === p2.id && v2.id === p1.id)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	},
+	
 	executeFold() {
 		const axiom = AXIOMS[AppState.currentAxiom];
 		if (AppState.isProcessing || AppState.selectedVertices.length !== axiom.requiredPoints) return;
 		
+		if (AppState.currentAxiom === 'AXIOM_1') {
+			const [p1, p2] = AppState.selectedVertices;
+			if (this.isSegmentAnEdge(p1, p2, AppState.mesh)) {
+				UI.displayError(t('errorFoldOnEdge'));
+				return;
+			}
+		}
+
 		if (AppState.currentAxiom === 'AXIOM_6') {
 			UI.displayError(t('errorAxiom6NotImplemented'), 10000);
 			return;
@@ -936,26 +1342,18 @@ const AppController = {
 			return;
 		}
 
+		const [p1, p2] = AppState.selectedVertices;
 		let mobilePoint;
-		const [p1, p2, p3, p4] = AppState.selectedVertices;
 
 		switch (AppState.currentAxiom) {
-			case 'AXIOM_2':
-				mobilePoint = p1;
-				break;
-			case 'AXIOM_3':
-				mobilePoint = p1;
-				break;
-			case 'AXIOM_4':
-				mobilePoint = p1;
-				break;
-			case 'AXIOM_5':
-				mobilePoint = p2;
-				break;
+			case 'AXIOM_2': mobilePoint = p1; break;
+			case 'AXIOM_3': mobilePoint = AppState.selectedVertices[0]; break; 
+			case 'AXIOM_4': mobilePoint = AppState.selectedVertices[2]; break;
+			case 'AXIOM_5': mobilePoint = p2; break;
 			default:
-				const midPoint = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+				const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
 				const vec = { x: p2.x - p1.x, y: p2.y - p1.y };
-				mobilePoint = { x: midPoint.x - vec.y * 0.01, y: midPoint.y + vec.x * 0.01 };
+				mobilePoint = { x: mid.x - vec.y * 0.01, y: mid.y + vec.x * 0.01 };
 				break;
 		}
 		
@@ -991,37 +1389,34 @@ const AppController = {
 	flipPaper() {
 		if (AppState.isProcessing) return;
 
-		const flipActionKey = 'historyFlip';
-		const lastAction = AppState.history[AppState.historyIndex]?.action;
-		
-		if (lastAction?.key === flipActionKey) {
-			AppState.history.pop();
-			AppState.historyIndex--;
-			AppState.mesh = cloneMesh(AppState.history[AppState.historyIndex].mesh);
-		} else {
-			if (AppState.mesh.vertices.length > 0) {
-				const xCoords = AppState.mesh.vertices.map(v => v.x);
-				const minX = Math.min(...xCoords);
-				const maxX = Math.max(...xCoords);
-				const centerX = (minX + maxX) / 2;
+		if (AppState.mesh.vertices.length > 0) {
+			const xCoords = AppState.mesh.vertices.map(v => v.x);
+			const minX = Math.min(...xCoords);
+			const maxX = Math.max(...xCoords);
+			const centerX = (minX + maxX) / 2;
 
-				AppState.mesh.vertices.forEach(vertex => {
-					vertex.x = 2 * centerX - vertex.x;
-				});
-			}
-
-			const maxLayer = AppState.mesh.faces.reduce((max, f) => Math.max(max, f.layer), 0);
-			AppState.mesh.faces.forEach(face => {
-				face.isRecto = !face.isRecto;
-				face.layer = maxLayer - face.layer;
-				face.vertices.reverse();
+			AppState.mesh.vertices.forEach(vertex => {
+				vertex.x = 2 * centerX - vertex.x;
 			});
 
-			AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
-			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: { key: flipActionKey } });
-			AppState.historyIndex++;
+			AppState.mesh.creases.forEach(crease => {
+				crease.p1.x = 2 * centerX - crease.p1.x;
+				crease.p2.x = 2 * centerX - crease.p2.x;
+			});
 		}
+
+		const maxLayer = AppState.mesh.faces.reduce((max, f) => Math.max(max, f.layer), 0);
+		AppState.mesh.faces.forEach(face => {
+			face.isRecto = !face.isRecto;
+			face.layer = maxLayer - face.layer;
+			face.vertices.reverse();
+		});
+
+		AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
+		AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: { key: 'historyFlip' } });
+		AppState.historyIndex++;
 		
+		AppState.clearSelection();
 		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},
@@ -1062,6 +1457,7 @@ const AppController = {
 		if (AppState.isProcessing) return;
 		AppState.currentAxiom = axiomId;
 		AppState.clearSelection();
+		AppState.previewPoint = null;
 		UI.displayError('');
 		this.saveStateToLocalStorage();
 		UI.render(AppState);
