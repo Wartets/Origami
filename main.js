@@ -265,7 +265,7 @@ const AXIOMS = {
 		},
 		getFoldLine: (points) => {
 			const [p1, p2] = points;
-			if (GEOMETRY.distSq(p1, p2) < 1e-9) return null;
+			if (GEOMETRY.distSq(p1, p2) < 1e-9) return { error: 'errorIdenticalPoints' };
 			const vec = new Vertex(p2.x - p1.x, p2.y - p1.y);
 			const pA = new Vertex(p1.x - vec.x * 1000, p1.y - vec.y * 1000);
 			const pB = new Vertex(p1.x + vec.x * 1000, p1.y + vec.y * 1000);
@@ -285,7 +285,7 @@ const AXIOMS = {
 		},
 		getFoldLine: (points) => {
 			const [p1, p2] = points;
-			if (GEOMETRY.distSq(p1, p2) < EPSILON) return null;
+			if (GEOMETRY.distSq(p1, p2) < EPSILON) return { error: 'errorIdenticalPoints' };
 			const midPoint = new Vertex((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
 			const vec = new Vertex(p2.x - p1.x, p2.y - p1.y);
 			const perpendicularVec = new Vertex(-vec.y, vec.x);
@@ -310,10 +310,10 @@ const AXIOMS = {
 		},
 		getFoldLine: (points) => {
 			const [l1p1, l1p2, l2p1, l2p2] = points;
-			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON || GEOMETRY.distSq(l2p1, l2p2) < EPSILON) return null;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON || GEOMETRY.distSq(l2p1, l2p2) < EPSILON) return { error: 'errorLineDefinition' };
 
 			const bisectors = GEOMETRY.getAngleBisector(l1p1, l1p2, l2p1, l2p2);
-			if (bisectors.length === 0) return null;
+			if (bisectors.length === 0) return { error: 'errorIdenticalLines' };
 
 			const bisector = bisectors[0];
 			const side1 = GEOMETRY.getLineSide(l1p1, bisector.p1, bisector.p2);
@@ -339,7 +339,7 @@ const AXIOMS = {
 		},
 		getFoldLine: (points) => {
 			const [l1p1, l1p2, p3] = points;
-			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON) return null;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON) return { error: 'errorLineDefinition' };
 			const vec = new Vertex(l1p2.x - l1p1.x, l1p2.y - l1p1.y);
 			const pVec = new Vertex(-vec.y, vec.x);
 			const pA = new Vertex(p3.x - pVec.x * 1000, p3.y - pVec.y * 1000);
@@ -362,15 +362,17 @@ const AXIOMS = {
 		},
 		getFoldLine: (points) => {
 			const [p1, p2, l1p1, l1p2] = points;
-			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON) return null;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON) return { error: 'errorLineDefinition' };
 
 			const radius = Math.sqrt(GEOMETRY.distSq(p1, p2));
-			if (radius < EPSILON) return null;
+			if (radius < EPSILON) return { error: 'errorIdenticalPoints' };
 
 			const intersections = GEOMETRY.getLineCircleIntersection(l1p1, l1p2, p1, radius);
+			if (intersections.length === 0) return { error: 'errorAxiom5NoSolution' };
+			
 			const validIntersections = intersections.filter(p => GEOMETRY.distSq(p, p2) > EPSILON);
 
-			if (validIntersections.length === 0) return null;
+			if (validIntersections.length === 0) return { error: 'errorInvalidFold' };
 			
 			const p2prime = validIntersections[0];
 
@@ -483,7 +485,7 @@ const FoldEngine = {
 		if (mobilePoint) {
 			const sideOfMobilePoint = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
 			if (Math.abs(sideOfMobilePoint) < EPSILON) {
-				return { mesh: null, error: t('errorMobilePointOnFoldLine') };
+				return { mesh: null, error: 'errorMobilePointOnFoldLine' };
 			}
 			mobileSideSign = Math.sign(sideOfMobilePoint);
 			
@@ -516,7 +518,7 @@ const FoldEngine = {
 			});
 	
 			if (side1Area < EPSILON || side2Area < EPSILON) {
-				return { mesh: null, error: t('errorInvalidFold') };
+				return { mesh: null, error: 'errorFoldLineMissesPaper' };
 			}
 
 			mobileFaces = side1Area < side2Area ? side1Faces : side2Faces;
