@@ -397,27 +397,30 @@ const AXIOMS = {
 
 // SECTION: FOLDING LOGIC
 const FoldEngine = {
-	performFold(mesh, foldLine, mobilePoint, foldDirection) {
+	performFold(mesh, foldLine, foldDirection, mobilePoint = null) {
 		const { p1: foldLineP1, p2: foldLineP2 } = foldLine;
 
-		const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
-		if (Math.abs(mobileSideSign) < EPSILON) {
-			return { mesh: null, error: t('errorMobilePointOnFoldLine') };
-		}
-		
 		const faceIdToFace = new Map(mesh.faces.map(f => [f.id, f]));
-
 		const newMesh = new Mesh();
 		const intersectionVertices = new Map();
+
+		const getPolygonArea = (vertices) => {
+			let area = 0;
+			for (let i = 0; i < vertices.length; i++) {
+				const p1 = vertices[i];
+				const p2 = vertices[(i + 1) % vertices.length];
+				area += p1.x * p2.y - p2.x * p1.y;
+			}
+			return Math.abs(area) / 2;
+		};
 
 		const splitFace = (face) => {
 			const poly = face.vertices;
 			const polySides = poly.map(p => GEOMETRY.getLineSide(p, foldLineP1, foldLineP2));
 			
-			const allOnMobileSide = polySides.every(s => s * mobileSideSign >= -EPSILON);
-			const allOnStaticSide = polySides.every(s => s * mobileSideSign <= EPSILON);
+			const allOnOneSide = polySides.every(s => s >= -EPSILON) || polySides.every(s => s <= EPSILON);
 
-			if (allOnMobileSide || allOnStaticSide) {
+			if (allOnOneSide) {
 				const newFace = new Face([...face.vertices], face.layer, face.isRecto);
 				newFace.parentId = face.id;
 				return [newFace];
@@ -431,8 +434,8 @@ const FoldEngine = {
 				const currentSide = polySides[i];
 				const nextSide = polySides[(i + 1) % poly.length];
 
-				if (currentSide * mobileSideSign >= -EPSILON) newPoly1.push(currentPoint);
-				if (currentSide * mobileSideSign <= EPSILON) newPoly2.push(currentPoint);
+				if (currentSide >= -EPSILON) newPoly1.push(currentPoint);
+				if (currentSide <= EPSILON) newPoly2.push(currentPoint);
 
 				if (currentSide * nextSide < -EPSILON) {
 					const intersection = GEOMETRY.getLineIntersection(currentPoint, nextPoint, foldLineP1, foldLineP2);
@@ -475,20 +478,65 @@ const FoldEngine = {
 			newMesh.faces.push(...splitResults);
 		});
 		
-		const staticFaces = [];
-		const mobileFaces = [];
-		
-		newMesh.faces.forEach(face => {
-			const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
-			const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
-			const isGeometricallyMobile = GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2) * mobileSideSign > EPSILON;
+		let mobileFaces, staticFaces, mobileSideSign;
 
-			if (isGeometricallyMobile) {
-				mobileFaces.push(face);
-			} else {
-				staticFaces.push(face);
+		if (mobilePoint) {
+			const sideOfMobilePoint = GEOMETRY.getLineSide(mobilePoint, foldLineP1, foldLineP2);
+			if (Math.abs(sideOfMobilePoint) < EPSILON) {
+				return { mesh: null, error: t('errorMobilePointOnFoldLine') };
 			}
+			mobileSideSign = Math.sign(sideOfMobilePoint);
+			
+			mobileFaces = newMesh.faces.filter(face => {
+				const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
+				const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
+				const side = GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2);
+				return Math.sign(side) === mobileSideSign;
+			});
+			staticFaces = newMesh.faces.filter(face => !mobileFaces.includes(face));
+		} else {
+			const side1Faces = [], side2Faces = [];
+			let side1Area = 0, side2Area = 0;
+	
+			newMesh.faces.forEach(face => {
+				const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
+				const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
+				const side = GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2);
+				
+				if (Math.abs(side) < EPSILON) return;
+	
+				const area = getPolygonArea(face.vertices);
+				if (side > 0) {
+					side1Faces.push(face);
+					side1Area += area;
+				} else {
+					side2Faces.push(face);
+					side2Area += area;
+				}
+			});
+	
+			if (side1Area < EPSILON || side2Area < EPSILON) {
+				return { mesh: null, error: t('errorInvalidFold') };
+			}
+
+			mobileFaces = side1Area < side2Area ? side1Faces : side2Faces;
+			staticFaces = side1Area < side2Area ? side2Faces : side1Faces;
+			mobileSideSign = side1Area < side2Area ? 1 : -1;
+		}
+
+		const reflectedMobileFaces = mobileFaces.map(face => {
+			const reflectedVertices = face.vertices.map(v => GEOMETRY.reflectPoint(v, foldLineP1, foldLineP2));
+			return new Face(reflectedVertices, face.layer, !face.isRecto);
 		});
+
+		const collidingStaticLayers = [];
+		for (const reflectedFace of reflectedMobileFaces) {
+			for (const staticFace of staticFaces) {
+				if (GEOMETRY.polygonsIntersect(reflectedFace.vertices, staticFace.vertices)) {
+					collidingStaticLayers.push(faceIdToFace.get(staticFace.parentId)?.layer ?? 0);
+				}
+			}
+		}
 
 		const allLayers = mesh.faces.map(f => f.layer);
 		const maxLayerInMesh = allLayers.length > 0 ? Math.max(...allLayers) : -1;
@@ -503,37 +551,15 @@ const FoldEngine = {
 		mobileFaces.forEach(face => {
 			const originalFace = faceIdToFace.get(face.parentId);
 			if (!originalFace) return;
-
-			const reflectedVertices = face.vertices.map(v => GEOMETRY.reflectPoint(v, foldLineP1, foldLineP2));
-
-			let targetLayer;
-			let targetLayerUpdater;
-			if (foldDirection === 'valley') {
-				targetLayer = -1;
-				targetLayerUpdater = Math.max;
-			} else { // mountain
-				targetLayer = Infinity;
-				targetLayerUpdater = Math.min;
-			}
 			
-			let collisionDetected = false;
-			for (const staticF of staticFaces) {
-				if (face.parentId === staticF.parentId) continue;
-
-				if (GEOMETRY.polygonsIntersect(reflectedVertices, staticF.vertices)) {
-					collisionDetected = true;
-					targetLayer = targetLayerUpdater(targetLayer, staticF.layer);
-				}
-			}
-
 			let relativeLayer, baseLayer;
 			if (foldDirection === 'valley') {
 				relativeLayer = originalFace.layer - minOriginalMobileLayer;
-				baseLayer = collisionDetected ? targetLayer + 1 : maxLayerInMesh + 1;
+				baseLayer = collidingStaticLayers.length > 0 ? Math.max(...collidingStaticLayers) + 1 : maxLayerInMesh + 1;
 				face.layer = baseLayer + relativeLayer;
 			} else { // mountain
 				relativeLayer = maxOriginalMobileLayer - originalFace.layer;
-				baseLayer = collisionDetected ? targetLayer - 1 : minLayerInMesh - 1;
+				baseLayer = collidingStaticLayers.length > 0 ? Math.min(...collidingStaticLayers) - 1 : minLayerInMesh - 1;
 				face.layer = baseLayer - relativeLayer;
 			}
 			
@@ -1323,19 +1349,42 @@ const AppController = {
 			return;
 		}
 
-		const vertexDegree = new Map();
-		AppState.mesh.vertices.forEach(v => vertexDegree.set(v.id, 0));
+		for (const crease of AppState.mesh.creases) {
+			const intersectionPoint = GEOMETRY.getInfiniteLineIntersection(foldLine.p1, foldLine.p2, crease.p1, crease.p2);
+			if (intersectionPoint) {
+				let intersectingCreaseCount = 1;
+				for (const otherCrease of AppState.mesh.creases) {
+					if (crease === otherCrease) continue;
+					if (Math.abs(GEOMETRY.getLineSide(intersectionPoint, otherCrease.p1, otherCrease.p2)) < EPSILON) {
+						intersectingCreaseCount++;
+					}
+				}
+				if (intersectingCreaseCount >= 2) {
+					UI.displayError(t('errorInvalidIntersection'));
+					return;
+				}
+			}
+		}
+
+		const vertexEdgeCount = new Map();
+		AppState.mesh.vertices.forEach(v => vertexEdgeCount.set(v.id, new Set()));
+		
+		const allEdges = new Set();
 		AppState.mesh.faces.forEach(face => {
 			for (let i = 0; i < face.vertices.length; i++) {
 				const v1 = face.vertices[i];
 				const v2 = face.vertices[(i + 1) % face.vertices.length];
-				vertexDegree.set(v1.id, vertexDegree.get(v1.id) + 1);
-				vertexDegree.set(v2.id, vertexDegree.get(v2.id) + 1);
+				const key = [v1.id, v2.id].sort().join('-');
+				if (!allEdges.has(key)) {
+					allEdges.add(key);
+					vertexEdgeCount.get(v1.id).add(v2.id);
+					vertexEdgeCount.get(v2.id).add(v1.id);
+				}
 			}
 		});
-		
+
 		for (const vertex of AppState.mesh.vertices) {
-			if ((vertexDegree.get(vertex.id) || 0) > 2) {
+			if ((vertexEdgeCount.get(vertex.id)?.size ?? 0) > 2) {
 				if (Math.abs(GEOMETRY.getLineSide(vertex, foldLine.p1, foldLine.p2)) < EPSILON) {
 					UI.displayError(t('errorInvalidIntersection'));
 					return;
@@ -1358,23 +1407,16 @@ const AppController = {
 
 		AppState.isProcessing = true;
 		UI.render(AppState);
-		
-		const [p1, p2] = AppState.selectedVertices;
-		let mobilePoint;
 
+		let mobilePoint = null;
+		const [p1, p2] = AppState.selectedVertices;
 		switch (AppState.currentAxiom) {
 			case 'AXIOM_2': mobilePoint = p1; break;
-			case 'AXIOM_3': mobilePoint = AppState.selectedVertices[0]; break; 
-			case 'AXIOM_4': mobilePoint = AppState.selectedVertices[2]; break;
+			case 'AXIOM_3': mobilePoint = p1; break;
 			case 'AXIOM_5': mobilePoint = p2; break;
-			default:
-				const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-				const vec = { x: p2.x - p1.x, y: p2.y - p1.y };
-				mobilePoint = { x: mid.x - vec.y * 0.01, y: mid.y + vec.x * 0.01 };
-				break;
 		}
 		
-		const foldResult = FoldEngine.performFold(AppState.mesh, foldLine, mobilePoint, foldDirection);
+		const foldResult = FoldEngine.performFold(AppState.mesh, foldLine, foldDirection, mobilePoint);
 		
 		if (foldResult.mesh) {
 			UI.displayError('');
