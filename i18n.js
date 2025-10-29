@@ -71,6 +71,7 @@ export const translations = {
 		errorInvalidFold: "Les points sélectionnés ne permettent pas de créer un pli valide.",
 		errorAxiom6NotImplemented: "L'axiome 6 n'est pas implémenté.",
 		errorFoldOnEdge: "Il est interdit de plier le long d'un bord de la feuille.",
+		errorInvalidIntersection: "Le pli ne peut pas passer par une intersection de plis existante.",
 
 		historyInit: "Initialisation",
 		historyFold: "Pli {{axiomName}} ({{foldTypeName}})",
@@ -154,6 +155,7 @@ export const translations = {
 		errorInvalidFold: "The selected points do not allow for a valid fold.",
 		errorAxiom6NotImplemented: "Axiom 6 is not implemented.",
 		errorFoldOnEdge: "Folding along a paper edge is not allowed.",
+		errorInvalidIntersection: "Fold cannot pass through an existing crease intersection.",
 
 		historyInit: "Initialization",
 		historyFold: "{{axiomName}} Fold ({{foldTypeName}})",
