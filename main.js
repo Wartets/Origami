@@ -998,11 +998,15 @@ const UI = {
 		this.elements.svg.innerHTML = '';
 		this.elements.svg.classList.toggle('xray-mode', isXRayMode);
 
+		const shadowColor = getComputedStyle(document.documentElement).getPropertyValue('--palette-dark-1');
 		const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
 		defs.innerHTML = `
 			<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
 				<polygon points="0 0, 10 3.5, 0 7" fill="${getComputedStyle(document.documentElement).getPropertyValue('--highlight-color')}" />
 			</marker>
+			<filter id="drop-shadow" x="-50%" y="-50%" width="400%" height="400%">
+				<feDropShadow dx="${2 * scaleFactor}" dy="${2 * scaleFactor}" stdDeviation="${2 * scaleFactor}" flood-color="${shadowColor}" flood-opacity="0.5"/>
+			</filter>
 		`;
 		this.elements.svg.appendChild(defs);
 
@@ -1017,6 +1021,19 @@ const UI = {
 			const brightness = 1 - (maxLayer - face.layer) * 0.05;
 			polygon.style.filter = `brightness(${brightness})`;
 			polygon.style.strokeWidth = `${0.5 * scaleFactor}px`;
+
+			let castsShadow = false;
+			for (const otherFace of mesh.faces) {
+				if (otherFace.id !== face.id && otherFace.layer < face.layer) {
+					if (GEOMETRY.polygonsIntersect(face.vertices, otherFace.vertices)) {
+						castsShadow = true;
+						break;
+					}
+				}
+			}
+			if (castsShadow) {
+				polygon.style.filter += ' url(#drop-shadow)';
+			}
 
 			return { face, polygon };
 		});
