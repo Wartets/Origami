@@ -678,6 +678,7 @@ const AppState = {
 	selectionCandidates: [],
 	selectionCandidateIndex: 0,
 	previewPoint: null,
+	cursorPosition: null,
 
 	init() {
 		const m = new Mesh();
@@ -755,6 +756,7 @@ const UI = {
 			foldValleyButton: document.getElementById('fold-valley-button'),
 			foldMountainButton: document.getElementById('fold-mountain-button'),
 			flipButton: document.getElementById('flip-button'),
+			recenterViewButton: document.getElementById('recenter-view-button'),
 			undoButton: document.getElementById('undo-button'),
 			redoButton: document.getElementById('redo-button'),
 			resetButton: document.getElementById('reset-button'),
@@ -778,18 +780,20 @@ const UI = {
 			errorMessageEl: document.getElementById('error-message'),
 			selectionProgressBar: document.getElementById('selection-progress-bar'),
 			langButtons: document.querySelectorAll('[data-lang]'),
+			cursorPositionValueEl: document.getElementById('cursor-position-value'),
 		};
 		
 		this.elements.svg.addEventListener('click', (e) => controller.handleSVGClick(e));
 		this.elements.svg.addEventListener('mousedown', (e) => controller.handlePanStart(e));
 		this.elements.svg.addEventListener('mousemove', (e) => controller.handleMouseMove(e));
 		this.elements.svg.addEventListener('mouseup', () => controller.handlePanEnd());
-		this.elements.svg.addEventListener('mouseleave', () => controller.handlePanEnd());
+		this.elements.svg.addEventListener('mouseleave', () => controller.handleMouseLeave());
 		this.elements.svg.addEventListener('wheel', (e) => controller.handleZoom(e));
 
 		this.elements.foldValleyButton.addEventListener('click', () => controller.executeFold('valley'));
 		this.elements.foldMountainButton.addEventListener('click', () => controller.executeFold('mountain'));
 		this.elements.flipButton.addEventListener('click', () => controller.flipPaper());
+		this.elements.recenterViewButton.addEventListener('click', () => controller.recenterView());
 		this.elements.undoButton.addEventListener('click', () => controller.undo());
 		this.elements.redoButton.addEventListener('click', () => controller.redo());
 		this.elements.resetButton.addEventListener('click', () => controller.reset());
@@ -807,7 +811,7 @@ const UI = {
 			button.addEventListener('click', (e) => controller.changeLanguage(e.currentTarget.dataset.lang));
 		});
 	},
-
+	
 	render(state) {
 		const { mesh, selectedVertices, currentAxiom, history, historyIndex, isProcessing, isXRayMode, viewBox, previewPoint } = state;
 
@@ -1064,7 +1068,12 @@ const UI = {
 					break;
 			}
 		}
-
+		
+		if (state.cursorPosition) {
+			this.elements.cursorPositionValueEl.textContent = `${state.cursorPosition.x.toFixed(2)}, ${state.cursorPosition.y.toFixed(2)}`;
+		} else {
+			this.elements.cursorPositionValueEl.textContent = '--';
+		}
 		this.elements.selectedPointsCountEl.textContent = selectedVertices.length;
 		this.elements.requiredPointsCountEl.textContent = axiomInfo.requiredPoints;
 		this.elements.faceCountEl.textContent = mesh.faces.length;
@@ -1078,6 +1087,7 @@ const UI = {
 		this.elements.foldValleyButton.disabled = foldButtonsDisabled;
 		this.elements.foldMountainButton.disabled = foldButtonsDisabled;
 		this.elements.flipButton.disabled = isProcessing;
+		this.elements.recenterViewButton.disabled = isProcessing;
 		this.elements.undoButton.disabled = isProcessing || historyIndex <= 0;
 		this.elements.redoButton.disabled = isProcessing || historyIndex >= history.length - 1;
 		this.elements.resetButton.disabled = isProcessing;
@@ -1185,31 +1195,30 @@ const AppController = {
 			return;
 		}
 
-		if (AppState.currentAxiom !== 'TOOL_ADD_POINT') {
-			if (AppState.previewPoint) {
-				AppState.previewPoint = null;
-				UI.render(AppState);
-			}
-			return;
-		}
-	
 		const svgRect = UI.elements.svg.getBoundingClientRect();
 		const scale = AppState.viewBox.width / svgRect.width;
 		const mouseX = AppState.viewBox.x + (event.clientX - svgRect.left) * scale;
 		const mouseY = AppState.viewBox.y + (event.clientY - svgRect.top) * scale;
-	
-		const potentialPoint = this.getSnapPoint(mouseX, mouseY, event.shiftKey, scale);
-		const isInside = AppState.mesh.faces.some(face => GEOMETRY.isPointInPolygon(potentialPoint, face.vertices));
+		AppState.cursorPosition = { x: mouseX, y: mouseY };
 
-		if (isInside) {
-			AppState.previewPoint = potentialPoint;
+		if (AppState.currentAxiom === 'TOOL_ADD_POINT') {
+			const potentialPoint = this.getSnapPoint(mouseX, mouseY, event.shiftKey, scale);
+			const isInside = AppState.mesh.faces.some(face => GEOMETRY.isPointInPolygon(potentialPoint, face.vertices));
+
+			if (isInside) {
+				AppState.previewPoint = potentialPoint;
+			} else {
+				AppState.previewPoint = null;
+			}
 		} else {
-			AppState.previewPoint = null;
+			if (AppState.previewPoint) {
+				AppState.previewPoint = null;
+			}
 		}
 		
 		UI.render(AppState);
 	},
-
+	
 	getSnapPoint(x, y, shiftPressed, scale) {
 		if (shiftPressed) return { x, y, snapLine: null };
 
@@ -1289,6 +1298,12 @@ const AppController = {
 	
 	handlePanEnd() {
 		AppState.isPanning = false;
+	},
+
+	handleMouseLeave() {
+		this.handlePanEnd();
+		AppState.cursorPosition = null;
+		UI.render(AppState);
 	},
 
 	handleZoom(event) {
@@ -1511,6 +1526,47 @@ const AppController = {
 
 		AppState.clearSelection();
 		AppState.isProcessing = false;
+		this.saveStateToLocalStorage();
+		UI.render(AppState);
+	},
+	
+	recenterView() {
+		if (AppState.isProcessing || AppState.mesh.vertices.length === 0) return;
+
+		const vertices = AppState.mesh.vertices;
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+		vertices.forEach(v => {
+			minX = Math.min(minX, v.x);
+			minY = Math.min(minY, v.y);
+			maxX = Math.max(maxX, v.x);
+			maxY = Math.max(maxY, v.y);
+		});
+
+		const modelWidth = maxX - minX;
+		const modelHeight = maxY - minY;
+		
+		if (modelWidth < EPSILON || modelHeight < EPSILON) return;
+
+		const PADDING = 1.2;
+		const container = UI.elements.svg.parentElement;
+		const containerAspectRatio = container.clientWidth / container.clientHeight;
+
+		let viewBoxWidth, viewBoxHeight;
+
+		if (modelWidth / modelHeight > containerAspectRatio) {
+			viewBoxWidth = modelWidth * PADDING;
+			viewBoxHeight = viewBoxWidth / containerAspectRatio;
+		} else {
+			viewBoxHeight = modelHeight * PADDING;
+			viewBoxWidth = viewBoxHeight * containerAspectRatio;
+		}
+
+		AppState.viewBox.width = viewBoxWidth;
+		AppState.viewBox.height = viewBoxHeight;
+		AppState.viewBox.x = minX - (viewBoxWidth - modelWidth) / 2;
+		AppState.viewBox.y = minY - (viewBoxHeight - modelHeight) / 2;
+		
 		this.saveStateToLocalStorage();
 		UI.render(AppState);
 	},

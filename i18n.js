@@ -15,6 +15,7 @@ export const translations = {
 		foldValley: "vallée",
 		foldMountain: "montagne",
 		flipButton: "Retourner",
+		recenterViewButton: "Recentrer",
 		undoButton: "Défaire",
 		redoButton: "Refaire",
 		resetButton: "Réinitialiser",
@@ -25,6 +26,7 @@ export const translations = {
 		modelStats: "Statistiques du Modèle",
 		facesLabel: "Faces",
 		verticesLabel: "Sommets",
+		cursorLabel: "Curseur",
 		historyHeader: "Historique",
 		instructionLabel: "Instruction",
 
@@ -64,8 +66,14 @@ export const translations = {
 		axiom5PromptReady: "Cliquez sur la face contenant P2 pour la plier.",
 		
 		axiom6Name: "Axiome 6",
-		axiom6Desc: "Amène P1 sur L1 et P2 sur L2. Non implémenté.<br><strong>Mathématiquement :</strong> Le pli est une tangente commune à deux paraboles. La recherche de cette tangente revient à résoudre une équation du troisième degré.",
-		axiom6Prompt1: "Cet axiome n'est pas implémenté.",
+		axiom6Desc: "Amène P1 sur la ligne L1 et P2 sur la ligne L2.<br><strong>Mathématiquement :</strong> Le pli est une tangente commune à deux paraboles (foyer P1, directrice L1 et foyer P2, directrice L2). Trouver cette tangente revient à résoudre une équation du troisième degré, pouvant donner jusqu'à 3 solutions.",
+		axiom6Prompt1: "Sélectionnez le point P1 (à amener sur L1).",
+		axiom6Prompt2: "Sélectionnez le point P2 (à amener sur L2).",
+		axiom6Prompt3: "Points P1 et P2 définis. Sélectionnez le premier point de la ligne L1.",
+		axiom6Prompt4: "Sélectionnez le second point de la ligne L1.",
+		axiom6Prompt5: "Ligne L1 définie. Sélectionnez le premier point de la ligne L2.",
+		axiom6Prompt6: "Sélectionnez le second point de la ligne L2.",
+		axiom6PromptReady: "Cliquez sur une face pour la plier.",
 
 		errorMobilePointOnFoldLine: "Pliage impossible : Le point à déplacer se trouve directement sur la ligne de pli, rendant la réflexion indéfinie.",
 		errorInvalidFold: "Sélection invalide : Les points/lignes choisis ne permettent pas de créer un pli valide selon les règles de l'axiome.",
@@ -75,10 +83,10 @@ export const translations = {
 		errorIdenticalPoints: "Sélection invalide : Les points sélectionnés sont identiques ou trop proches pour définir une ligne ou une opération unique.",
 		errorLineDefinition: "Définition de ligne invalide : Les deux points utilisés pour définir une ligne (L, L1 ou L2) doivent être distincts.",
 		errorAxiom5NoSolution: "L'axiome 5 n'a pas de solution : La distance du point pivot (P1) à la ligne (L) est supérieure à la distance |P1P2|.",
+		errorAxiom6NoSolution: "L'axiome 6 n'a pas de solution pour la configuration donnée.",
 		errorFoldLineMissesPaper: "Pliage impossible : La ligne de pli calculée n'intersecte pas la feuille de papier.",
 		errorIdenticalLines: "Sélection invalide pour l'Axiome 3 : Les deux lignes sélectionnées sont identiques.",
 		errorFaceSelection: "Sélection de face invalide : La face cliquée n'est pas du côté mobile attendu du pli.",
-		errorPointExists: "Erreur : Un point existe déjà à cet emplacement ou très proche.",
 
 		historyInit: "Initialisation",
 		historyFold: "Pli {{axiomName}} ({{foldTypeName}})",
@@ -89,8 +97,6 @@ export const translations = {
 		addPointToolName: "Outil d'Ajout de Point",
 		addPointToolDesc: "Ajoute un nouveau point de construction sur le papier.<br><strong>Astuce :</strong> Maintenez la touche SHIFT enfoncée pour désactiver temporairement le magnétisme.",
 		addPointToolPrompt1: "Cliquez sur la feuille pour ajouter un point.",
-		
-		footerText: '&copy; 2025. Tous droits réservés. Conçu par <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>Voir plus de projets sur <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. Ce projet est sous licence MIT.',
 	},
 	en: {
 		toolHeader: "Folding Tools",
@@ -108,6 +114,7 @@ export const translations = {
 		foldValley: "valley",
 		foldMountain: "mountain",
 		flipButton: "Flip",
+		recenterViewButton: "Recenter",
 		undoButton: "Undo",
 		redoButton: "Redo",
 		resetButton: "Reset",
@@ -118,6 +125,7 @@ export const translations = {
 		modelStats: "Model Statistics",
 		facesLabel: "Faces",
 		verticesLabel: "Vertices",
+		cursorLabel: "Cursor",
 		historyHeader: "History",
 		instructionLabel: "Instruction",
 
@@ -157,8 +165,14 @@ export const translations = {
 		axiom5PromptReady: "Click the face containing P2 to fold it.",
 		
 		axiom6Name: "Axiom 6",
-		axiom6Desc: "Brings P1 onto L1 and P2 onto L2. Not implemented.<br><strong>Mathematically:</strong> The fold is a common tangent to two parabolas. Finding this tangent involves solving a cubic equation.",
-		axiom6Prompt1: "This axiom is not implemented.",
+		axiom6Desc: "Brings P1 onto line L1 and P2 onto line L2.<br><strong>Mathematically:</strong> The fold is a common tangent to two parabolas (focus P1, directrix L1 and focus P2, directrix L2). Finding this tangent involves solving a cubic equation, which can yield up to 3 solutions.",
+		axiom6Prompt1: "Select point P1 (to be brought onto L1).",
+		axiom6Prompt2: "Select point P2 (to be brought onto L2).",
+		axiom6Prompt3: "Points P1 and P2 defined. Select the first point of line L1.",
+		axiom6Prompt4: "Select the second point of line L1.",
+		axiom6Prompt5: "Line L1 defined. Select the first point of line L2.",
+		axiom6Prompt6: "Select the second point of line L2.",
+		axiom6PromptReady: "Click a face to fold.",
 
 		errorMobilePointOnFoldLine: "Folding failed: The point being moved lies directly on the fold line, making the reflection undefined.",
 		errorInvalidFold: "Invalid selection: The chosen points/lines do not produce a valid fold according to the axiom's rules.",
@@ -168,10 +182,10 @@ export const translations = {
 		errorIdenticalPoints: "Invalid selection: The selected points are identical or too close to define a unique line or operation.",
 		errorLineDefinition: "Invalid line definition: The two points used to define a line (L, L1, or L2) must be distinct.",
 		errorAxiom5NoSolution: "Axiom 5 has no solution: The distance from the pivot point (P1) to the line (L) is greater than the distance |P1P2|.",
+		errorAxiom6NoSolution: "Axiom 6 has no solution for the given configuration.",
 		errorFoldLineMissesPaper: "Folding failed: The calculated fold line does not intersect with the paper.",
 		errorIdenticalLines: "Invalid selection for Axiom 3: The two selected lines are identical.",
 		errorFaceSelection: "Invalid face selection: The clicked face is not on the expected mobile side of the fold.",
-		errorPointExists: "Error: A point already exists at or very near this location.",
 
 		historyInit: "Initialization",
 		historyFold: "{{axiomName}} Fold ({{foldTypeName}})",
@@ -182,6 +196,5 @@ export const translations = {
 		addPointToolName: "Add Point Tool",
 		addPointToolDesc: "Adds a new construction point to the paper.<br><strong>Tip:</strong> Hold down the SHIFT key to temporarily disable snapping.",
 		addPointToolPrompt1: "Click on the paper to add a point.",
-		footerText: '&copy; 2025. All rights reserved. Designed by <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>See more projects on <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. This project is under the MIT License.',
 	}
 };
