@@ -243,6 +243,114 @@ const GEOMETRY = {
 
 		return solutions;
 	},
+
+	getLineCircleIntersection(lineP1, lineP2, circleCenter, radius) {
+		const d = { x: lineP2.x - lineP1.x, y: lineP2.y - lineP1.y };
+		const f = { x: lineP1.x - circleCenter.x, y: lineP1.y - circleCenter.y };
+
+		const a = d.x * d.x + d.y * d.y;
+		const b = 2 * (f.x * d.x + f.y * d.y);
+		const c = f.x * f.x + f.y * f.y - radius * radius;
+
+		let discriminant = b * b - 4 * a * c;
+		if (discriminant < 0) {
+			return [];
+		}
+		
+		if (discriminant < EPSILON) discriminant = 0;
+
+		discriminant = Math.sqrt(discriminant);
+		const t1 = (-b - discriminant) / (2 * a);
+		const t2 = (-b + discriminant) / (2 * a);
+
+		const solutions = [];
+		if (isFinite(t1)) solutions.push(new Vertex(lineP1.x + t1 * d.x, lineP1.y + t1 * d.y));
+		if (isFinite(t2) && Math.abs(discriminant) > EPSILON) solutions.push(new Vertex(lineP1.x + t2 * d.x, lineP1.y + t2 * d.y));
+
+		return solutions;
+	},
+
+	solveCubic(a, b, c, d) {
+		if (Math.abs(a) < EPSILON) {
+			if (Math.abs(b) < EPSILON) return Math.abs(c) < EPSILON ? [] : [-d / c];
+			const D = c * c - 4 * b * d;
+			if (D < 0) return [];
+			return [(-c + Math.sqrt(D)) / (2*b), (-c - Math.sqrt(D)) / (2*b)];
+		}
+		b /= a; c /= a; d /= a;
+		const p = (3*c - b*b)/3;
+		const q = (2*b*b*b - 9*b*c + 27*d)/27;
+		if (Math.abs(p) < EPSILON) return [Math.cbrt(-q)-b/3];
+		const D = q*q/4 + p*p*p/27;
+		if (Math.abs(D) < EPSILON) return [3*q/p-b/3, -3*q/(2*p)-b/3];
+		if (D > 0) return [Math.cbrt(-q/2 + Math.sqrt(D)) + Math.cbrt(-q/2 - Math.sqrt(D)) - b/3];
+		const u = 2 * Math.sqrt(-p/3);
+		const t = Math.acos(-3*q / (p*u)) / 3;
+		const k = 2 * Math.PI / 3;
+		return [u * Math.cos(t) - b/3, u * Math.cos(t-k) - b/3, u * Math.cos(t-2*k) - b/3];
+	},
+	
+	getCommonTangentsToParabolas(f1, d1_p1, d1_p2, f2, d2_p1, d2_p2) {
+		const transform = (p, angle, translate) => ({
+			x: (p.x - translate.x) * Math.cos(angle) - (p.y - translate.y) * Math.sin(angle),
+			y: (p.x - translate.x) * Math.sin(angle) + (p.y - translate.y) * Math.cos(angle)
+		});
+		
+		const inverseTransform = (p, angle, translate) => ({
+			x: p.x * Math.cos(angle) + p.y * Math.sin(angle) + translate.x,
+			y: -p.x * Math.sin(angle) + p.y * Math.cos(angle) + translate.y
+		});
+
+		const l1_vec_x = d1_p2.x - d1_p1.x;
+		const l1_vec_y = d1_p2.y - d1_p1.y;
+		const rotationAngle = -Math.atan2(l1_vec_y, l1_vec_x);
+		const translation = { x: d1_p1.x, y: d1_p1.y };
+
+		const f1_t = transform(f1, rotationAngle, translation);
+		const f2_t = transform(f2, rotationAngle, translation);
+		const d2_p1_t = transform(d2_p1, rotationAngle, translation);
+		const d2_p2_t = transform(d2_p2, rotationAngle, translation);
+
+		const line2_t = this.getLineFromPoints(d2_p1_t, d2_p2_t);
+		let { A, B, C } = line2_t;
+		const norm = Math.sqrt(A*A + B*B);
+		A /= norm; B /= norm; C /= norm;
+		
+		const [u, v] = [f1_t.x, f1_t.y];
+		const [p, q] = [f2_t.x, f2_t.y];
+
+		const A_ = 2 * v * (B*p - A*q + C);
+		const B_ = 2*v*(B*u - A*v) - (u-p)*(u-p) + (v-q)*(v-q) - 2*A*v*(u-p) - 2*B*v*(v-q);
+		const C_ = 2*(u-p)*(v - B*v) - 2*(v-q)*(u - A*v);
+		const D_ = (u-p)*(u-p) + (v+q)*(v+q) - (2*v*(A*(u-p) + B*(v-q) + A*p + B*q + C));
+
+		const coeffs = [A_, B_, C_, D_];
+		const slopes = this.solveCubic(...coeffs).filter(s => isFinite(s));
+		const tangents = [];
+
+		for (const m of slopes) {
+			const k = (m*u - v + m*m*u + v*m*m) / (2*m);
+			
+			const p1 = inverseTransform({ x: -1000, y: m * -1000 + k }, rotationAngle, translation);
+			const p2 = inverseTransform({ x: 1000, y: m * 1000 + k }, rotationAngle, translation);
+			
+			tangents.push({ p1, p2 });
+		}
+		
+		if (Math.abs(B) < EPSILON) {
+			const y0 = -C/A;
+			const m_inf_num = (p-u)*(p-u) - (q-v)*(q-v) + 2*v*q - 2*v*v;
+			const m_inf_den = 2*(p-y0)*v;
+			if (Math.abs(m_inf_den) > EPSILON) {
+				const x0 = m_inf_num / m_inf_den;
+				const p1 = inverseTransform({x: x0, y: -1000}, rotationAngle, translation);
+				const p2 = inverseTransform({x: x0, y: 1000}, rotationAngle, translation);
+				tangents.push({p1, p2});
+			}
+		}
+
+		return tangents;
+	},
 };
 
 // SECTION: AXIOMS CONFIGURATION
@@ -390,12 +498,76 @@ const AXIOMS = {
 		nameKey: 'axiom6Name',
 		descKey: 'axiom6Desc',
 		requiredPoints: 6,
-		prompts: (selected) => 'axiom6Prompt1',
-		getFoldLine: (points) => {
-			console.warn("Axiome 6 n'est pas implémenté en raison de sa complexité géométrique.");
-			return null;
+		prompts: (selected) => {
+			switch (selected.length) {
+				case 0: return 'axiom6Prompt1';
+				case 1: return 'axiom6Prompt2';
+				case 2: return 'axiom6Prompt3';
+				case 3: return 'axiom6Prompt4';
+				case 4: return 'axiom6Prompt5';
+				case 5: return 'axiom6Prompt6';
+				default: return 'axiom6PromptReady';
+			}
+		},
+		getFoldLines: (points) => {
+			const [p1, l1p1, l1p2, p2, l2p1, l2p2] = points;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON || GEOMETRY.distSq(l2p1, l2p2) < EPSILON) return { error: 'errorLineDefinition' };
+			
+			const solutions = GEOMETRY.getCommonTangentsToParabolas(p1, l1p1, l1p2, p2, l2p1, l2p2);
+			
+			if (solutions.length === 0) {
+				return { error: 'errorAxiom6NoSolution' };
+			}
+			return solutions;
 		}
-	}
+	},
+	'AXIOM_7': {
+		nameKey: 'axiom7Name',
+		descKey: 'axiom7Desc',
+		requiredPoints: 5,
+		prompts: (selected) => {
+			switch (selected.length) {
+				case 0: return 'axiom7Prompt1';
+				case 1: return 'axiom7Prompt2';
+				case 2: return 'axiom7Prompt3';
+				case 3: return 'axiom7Prompt4';
+				case 4: return 'axiom7Prompt5';
+				default: return 'axiom7PromptReady';
+			}
+		},
+		getFoldLine: (points) => {
+			const [p1, l1p1, l1p2, l2p1, l2p2] = points;
+			if (GEOMETRY.distSq(l1p1, l1p2) < EPSILON || GEOMETRY.distSq(l2p1, l2p2) < EPSILON) return { error: 'errorLineDefinition' };
+
+			const l1 = GEOMETRY.getLineFromPoints(l1p1, l1p2);
+			const vecL2 = { x: l2p2.x - l2p1.x, y: l2p2.y - l2p1.y };
+
+			const n = { x: vecL2.x, y: vecL2.y };
+			const nSq = n.x * n.x + n.y * n.y;
+			if (nSq < EPSILON) return { error: 'errorLineDefinition' };
+			
+			const term1 = l1.A * p1.x + l1.B * p1.y + l1.C;
+			const term2 = 2 * (l1.A * n.x + l1.B * n.y);
+			
+			if (Math.abs(term2) < EPSILON) return { error: 'errorAxiom7NoSolution' };
+			
+			const d = - (nSq * term1) / term2 - (n.x * p1.x + n.y * p1.y);
+			
+			const foldNormal = { x: n.x, y: n.y };
+			const foldDir = { x: -foldNormal.y, y: foldNormal.x };
+			
+			let p0;
+			if (Math.abs(foldNormal.y) > EPSILON) {
+				p0 = new Vertex(0, -d / foldNormal.y);
+			} else {
+				p0 = new Vertex(-d / foldNormal.x, 0);
+			}
+
+			const pA = new Vertex(p0.x - foldDir.x * 1000, p0.y - foldDir.y * 1000);
+			const pB = new Vertex(p0.x + foldDir.x * 1000, p0.y + foldDir.y * 1000);
+			return { p1: pA, p2: pB };
+		}
+	},
 };
 
 // SECTION: FOLDING LOGIC
@@ -679,6 +851,8 @@ const AppState = {
 	selectionCandidateIndex: 0,
 	previewPoint: null,
 	cursorPosition: null,
+	axiom6Solutions: [],
+	selectedAxiom6SolutionIndex: null,
 
 	init() {
 		const m = new Mesh();
@@ -743,6 +917,8 @@ const AppState = {
 
 	clearSelection() {
 		this.selectedVertices = [];
+		this.axiom6Solutions = [];
+		this.selectedAxiom6SolutionIndex = null;
 	}
 };
 
@@ -769,6 +945,7 @@ const UI = {
 				'AXIOM_4': document.getElementById('axiom4-button'),
 				'AXIOM_5': document.getElementById('axiom5-button'),
 				'AXIOM_6': document.getElementById('axiom6-button'),
+				'AXIOM_7': document.getElementById('axiom7-button'),
 			},
 			selectedPointsCountEl: document.getElementById('selected-points-count'),
 			requiredPointsCountEl: document.getElementById('required-points-count'),
@@ -813,7 +990,7 @@ const UI = {
 	},
 	
 	render(state) {
-		const { mesh, selectedVertices, currentAxiom, history, historyIndex, isProcessing, isXRayMode, viewBox, previewPoint } = state;
+		const { mesh, selectedVertices, currentAxiom, history, historyIndex, isProcessing, isXRayMode, viewBox, previewPoint, axiom6Solutions, selectedAxiom6SolutionIndex } = state;
 
 		const scaleFactor = viewBox.width / this.elements.svg.clientWidth;
 
@@ -879,58 +1056,78 @@ const UI = {
 			});
 		}
 
-		const drawPreviewLine = (p1, p2, className) => {
+		const drawPreviewLine = (p1, p2, className, isSelected = false) => {
 			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
 			line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
 			line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
 			line.classList.add(className);
-			const baseWidth = className === 'preview-line' ? 2 : 1.5;
+			let baseWidth = className === 'preview-line' ? 1.5 : 1.5;
+			if (isSelected) {
+				baseWidth = 3;
+				line.style.strokeDasharray = 'none';
+			}
 			line.style.strokeWidth = `${baseWidth * scaleFactor}px`;
 			this.elements.svg.appendChild(line);
 		};
 
 		const axiomInfo = AXIOMS[currentAxiom];
 		if (selectedVertices.length > 0) {
-			if ((currentAxiom === 'AXIOM_3' || currentAxiom === 'AXIOM_4' || currentAxiom === 'AXIOM_5') && selectedVertices.length >= 2) {
+			if ((currentAxiom === 'AXIOM_3' || currentAxiom === 'AXIOM_4' || currentAxiom === 'AXIOM_5' || currentAxiom === 'AXIOM_6' || currentAxiom === 'AXIOM_7') && selectedVertices.length >= 2) {
 				drawPreviewLine(selectedVertices[0], selectedVertices[1], 'construction-line');
-				if (currentAxiom === 'AXIOM_3' && selectedVertices.length >= 4) {
+				if ((currentAxiom === 'AXIOM_3' || currentAxiom === 'AXIOM_6') && selectedVertices.length >= 4) {
 					drawPreviewLine(selectedVertices[2], selectedVertices[3], 'construction-line');
 				} else if (currentAxiom === 'AXIOM_5' && selectedVertices.length >= 4) {
 					drawPreviewLine(selectedVertices[2], selectedVertices[3], 'construction-line');
+				}
+				if (currentAxiom === 'AXIOM_6' && selectedVertices.length >= 6) {
+					drawPreviewLine(selectedVertices[4], selectedVertices[5], 'construction-line');
+				}
+				if (currentAxiom === 'AXIOM_7' && selectedVertices.length >= 3) {
+					drawPreviewLine(selectedVertices[1], selectedVertices[2], 'construction-line');
+					if (selectedVertices.length >= 5) {
+						drawPreviewLine(selectedVertices[3], selectedVertices[4], 'construction-line');
+					}
 				}
 			}
 		}
 
 		if (axiomInfo.requiredPoints > 0 && selectedVertices.length === axiomInfo.requiredPoints) {
-			const foldLine = axiomInfo.getFoldLine(selectedVertices);
-			if (foldLine) {
-				drawPreviewLine(foldLine.p1, foldLine.p2, 'preview-line');
-				
-				let mobilePoint;
-				const [p1, p2] = selectedVertices;
-				switch (currentAxiom) {
-					case 'AXIOM_2': mobilePoint = p1; break;
-					case 'AXIOM_3': mobilePoint = p1; break;
-					case 'AXIOM_4': mobilePoint = selectedVertices[2]; break;
-					case 'AXIOM_5': mobilePoint = p2; break;
-					default: mobilePoint = p1; break;
-				}
+			if (currentAxiom === 'AXIOM_6') {
+				axiom6Solutions.forEach((line, index) => {
+					drawPreviewLine(line.p1, line.p2, 'preview-line', index === selectedAxiom6SolutionIndex);
+				});
+			} else {
+				const foldLine = axiomInfo.getFoldLine(selectedVertices);
+				if (foldLine && !foldLine.error) {
+					drawPreviewLine(foldLine.p1, foldLine.p2, 'preview-line');
+					
+					let mobilePoint;
+					const [p1, p2] = selectedVertices;
+					switch (currentAxiom) {
+						case 'AXIOM_2': mobilePoint = p1; break;
+						case 'AXIOM_3': mobilePoint = p1; break;
+						case 'AXIOM_4': mobilePoint = selectedVertices[2]; break;
+						case 'AXIOM_5': mobilePoint = p2; break;
+						case 'AXIOM_7': mobilePoint = p1; break;
+						default: mobilePoint = p1; break;
+					}
 
-				if (mobilePoint) {
-					const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLine.p1, foldLine.p2);
-					const reflectedPoint = GEOMETRY.reflectPoint(mobilePoint, foldLine.p1, foldLine.p2);
-					if (Math.abs(mobileSideSign) > 1e-9) {
-						const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-						const midFold = { x: (mobilePoint.x + reflectedPoint.x) / 2, y: (mobilePoint.y + reflectedPoint.y) / 2 };
-						const control = { 
-							x: midFold.x - (mobilePoint.y - midFold.y) * 0.5,
-							y: midFold.y + (mobilePoint.x - midFold.x) * 0.5
-						};
-						path.setAttribute('d', `M ${mobilePoint.x} ${mobilePoint.y} Q ${control.x} ${control.y} ${reflectedPoint.x} ${reflectedPoint.y}`);
-						path.classList.add('fold-arrow');
-						path.style.fill = 'none';
-						path.style.strokeWidth = `${2 * scaleFactor}px`;
-						this.elements.svg.appendChild(path);
+					if (mobilePoint) {
+						const mobileSideSign = GEOMETRY.getLineSide(mobilePoint, foldLine.p1, foldLine.p2);
+						const reflectedPoint = GEOMETRY.reflectPoint(mobilePoint, foldLine.p1, foldLine.p2);
+						if (Math.abs(mobileSideSign) > 1e-9) {
+							const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+							const midFold = { x: (mobilePoint.x + reflectedPoint.x) / 2, y: (mobilePoint.y + reflectedPoint.y) / 2 };
+							const control = { 
+								x: midFold.x - (mobilePoint.y - midFold.y) * 0.5,
+								y: midFold.y + (mobilePoint.x - midFold.x) * 0.5
+							};
+							path.setAttribute('d', `M ${mobilePoint.x} ${mobilePoint.y} Q ${control.x} ${control.y} ${reflectedPoint.x} ${reflectedPoint.y}`);
+							path.classList.add('fold-arrow');
+							path.style.fill = 'none';
+							path.style.strokeWidth = `${2 * scaleFactor}px`;
+							this.elements.svg.appendChild(path);
+						}
 					}
 				}
 			}
@@ -1066,6 +1263,33 @@ const UI = {
 						drawLabel('L', midX, midY);
 					}
 					break;
+				case 'AXIOM_6':
+					if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
+					if (selectedVertices.length >= 3) {
+						const midX = (selectedVertices[1].x + selectedVertices[2].x) / 2;
+						const midY = (selectedVertices[1].y + selectedVertices[2].y) / 2;
+						drawLabel('L1', midX, midY);
+					}
+					if (selectedVertices.length >= 4) drawLabel('P2', selectedVertices[3].x, selectedVertices[3].y);
+					if (selectedVertices.length >= 6) {
+						const midX = (selectedVertices[4].x + selectedVertices[5].x) / 2;
+						const midY = (selectedVertices[4].y + selectedVertices[5].y) / 2;
+						drawLabel('L2', midX, midY);
+					}
+					break;
+				case 'AXIOM_7':
+					if (selectedVertices.length > 0) drawLabel('P1', selectedVertices[0].x, selectedVertices[0].y);
+					if (selectedVertices.length >= 3) {
+						const midX = (selectedVertices[1].x + selectedVertices[2].x) / 2;
+						const midY = (selectedVertices[1].y + selectedVertices[2].y) / 2;
+						drawLabel('L1', midX, midY);
+					}
+					if (selectedVertices.length >= 5) {
+						const midX = (selectedVertices[3].x + selectedVertices[4].x) / 2;
+						const midY = (selectedVertices[3].y + selectedVertices[4].y) / 2;
+						drawLabel('L2', midX, midY);
+					}
+					break;
 			}
 		}
 		
@@ -1083,7 +1307,11 @@ const UI = {
 		const prompt = t(axiomInfo.prompts(selectedVertices));
 		this.elements.currentToolDescEl.innerHTML = `<strong>${t('instructionLabel')}:</strong> ${prompt}<hr>${t(axiomInfo.descKey)}`;
 
-		const foldButtonsDisabled = isProcessing || currentAxiom === 'TOOL_ADD_POINT' || selectedVertices.length !== axiomInfo.requiredPoints;
+		const isAxiom6Ready = currentAxiom === 'AXIOM_6' && selectedVertices.length === axiomInfo.requiredPoints;
+		const foldButtonsDisabled = isProcessing || currentAxiom === 'TOOL_ADD_POINT' || 
+			(selectedVertices.length !== axiomInfo.requiredPoints) ||
+			(isAxiom6Ready && selectedAxiom6SolutionIndex === null);
+
 		this.elements.foldValleyButton.disabled = foldButtonsDisabled;
 		this.elements.foldMountainButton.disabled = foldButtonsDisabled;
 		this.elements.flipButton.disabled = isProcessing;
@@ -1337,6 +1565,28 @@ const AppController = {
 		const clickX = AppState.viewBox.x + (event.clientX - svgRect.left) * scale;
 		const clickY = AppState.viewBox.y + (event.clientY - svgRect.top) * scale;
 		
+		if (AppState.currentAxiom === 'AXIOM_6' && AppState.axiom6Solutions.length > 0) {
+			let closestLineIndex = -1;
+			let minDistanceSq = Infinity;
+			const clickPoint = { x: clickX, y: clickY };
+			
+			AppState.axiom6Solutions.forEach((line, index) => {
+				const closestPointOnLine = GEOMETRY.getClosestPointOnLineSegment(clickPoint, line.p1, line.p2);
+				const distSq = GEOMETRY.distSq(clickPoint, closestPointOnLine);
+				
+				if (distSq < minDistanceSq) {
+					minDistanceSq = distSq;
+					closestLineIndex = index;
+				}
+			});
+
+			if (closestLineIndex !== -1 && minDistanceSq < (20 * scale) ** 2) {
+				AppState.selectedAxiom6SolutionIndex = closestLineIndex;
+				UI.render(AppState);
+				return;
+			}
+		}
+
 		if (AppState.currentAxiom === 'TOOL_ADD_POINT') {
 			const pointToAdd = AppState.previewPoint ? new Vertex(AppState.previewPoint.x, AppState.previewPoint.y, true) : new Vertex(clickX, clickY, true);
 			
@@ -1397,6 +1647,15 @@ const AppController = {
 			const vertexToSelect = AppState.selectionCandidates[AppState.selectionCandidateIndex % AppState.selectionCandidates.length];
 			if(vertexToSelect) {
 				AppState.selectVertex(vertexToSelect);
+				if (AppState.currentAxiom === 'AXIOM_6' && AppState.selectedVertices.length === 6) {
+					const solutions = AXIOMS['AXIOM_6'].getFoldLines(AppState.selectedVertices);
+					if (solutions.error) {
+						UI.displayError(t(solutions.error));
+						AppState.axiom6Solutions = [];
+					} else {
+						AppState.axiom6Solutions = solutions;
+					}
+				}
 			}
 		}
 		
@@ -1419,10 +1678,17 @@ const AppController = {
 	executeFold(foldDirection) {
 		const axiom = AXIOMS[AppState.currentAxiom];
 		if (AppState.isProcessing || AppState.selectedVertices.length !== axiom.requiredPoints) return;
+		
+		let foldLine;
+		if (AppState.currentAxiom === 'AXIOM_6') {
+			if (AppState.selectedAxiom6SolutionIndex === null) return;
+			foldLine = AppState.axiom6Solutions[AppState.selectedAxiom6SolutionIndex];
+		} else {
+			foldLine = axiom.getFoldLine(AppState.selectedVertices);
+		}
 
-		const foldLine = axiom.getFoldLine(AppState.selectedVertices);
-		if (!foldLine) {
-			UI.displayError(t('errorInvalidFold'));
+		if (!foldLine || foldLine.error) {
+			UI.displayError(t(foldLine?.error || 'errorInvalidFold'));
 			return;
 		}
 
@@ -1477,20 +1743,17 @@ const AppController = {
 			}
 		}
 
-		if (AppState.currentAxiom === 'AXIOM_6') {
-			UI.displayError(t('errorAxiom6NotImplemented'), 10000);
-			return;
-		}
-
 		AppState.isProcessing = true;
 		UI.render(AppState);
 
 		let mobilePoint = null;
-		const [p1, p2] = AppState.selectedVertices;
+		const [p1, p2, , p4] = AppState.selectedVertices;
 		switch (AppState.currentAxiom) {
 			case 'AXIOM_2': mobilePoint = p1; break;
 			case 'AXIOM_3': mobilePoint = p1; break;
 			case 'AXIOM_5': mobilePoint = p2; break;
+			case 'AXIOM_6': mobilePoint = p1; break;
+			case 'AXIOM_7': mobilePoint = p1; break;
 		}
 		
 		let topmostFace = null;
@@ -1521,7 +1784,7 @@ const AppController = {
 			AppState.history.push({ mesh: cloneMesh(AppState.mesh), action: action });
 			AppState.historyIndex++;
 		} else if (foldResult.error) {
-			UI.displayError(foldResult.error);
+			UI.displayError(t(foldResult.error));
 		}
 
 		AppState.clearSelection();
