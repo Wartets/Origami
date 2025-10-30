@@ -187,17 +187,17 @@ const GEOMETRY = {
 		return new Vertex(p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y));
 	},
 	
-    isPointInPolygon(point, polygon) {
-        let isInside = false;
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i].x, yi = polygon[i].y;
-            const xj = polygon[j].x, yj = polygon[j].y;
-            const intersect = ((yi > point.y) !== (yj > point.y))
-                && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
-            if (intersect) isInside = !isInside;
-        }
-        return isInside;
-    },
+	isPointInPolygon(point, polygon) {
+		let isInside = false;
+		for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+			const xi = polygon[i].x, yi = polygon[i].y;
+			const xj = polygon[j].x, yj = polygon[j].y;
+			const intersect = ((yi > point.y) !== (yj > point.y))
+				&& (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+			if (intersect) isInside = !isInside;
+		}
+		return isInside;
+	},
 	
 	polygonsIntersect(poly1, poly2) {
 		for (let i = 0; i < poly1.length; i++) {
@@ -840,7 +840,7 @@ const AppState = {
 	historyIndex: -1,
 	selectedVertices: [],
 	isProcessing: false,
-	currentAxiom: 'AXIOM_2',
+	currentAxiom: 'AXIom_2',
 	isXRayMode: false,
 	viewBox: { x: 0, y: 0, width: 0, height: 0 },
 	isPanning: false,
@@ -853,6 +853,9 @@ const AppState = {
 	cursorPosition: null,
 	axiom6Solutions: [],
 	selectedAxiom6SolutionIndex: null,
+	isToolbarCollapsed: false,
+	isInfoPanelCollapsed: false,
+	activeResizer: null,
 
 	init() {
 		const m = new Mesh();
@@ -881,6 +884,8 @@ const AppState = {
 		this.selectedVertices = [];
 		this.isProcessing = false;
 		this.isXRayMode = false;
+		this.isToolbarCollapsed = false;
+		this.isInfoPanelCollapsed = false;
 	},
 
 	saveState() {
@@ -958,6 +963,10 @@ const UI = {
 			selectionProgressBar: document.getElementById('selection-progress-bar'),
 			langButtons: document.querySelectorAll('[data-lang]'),
 			cursorPositionValueEl: document.getElementById('cursor-position-value'),
+			toggleToolbarButton: document.getElementById('toggle-toolbar-left'),
+			toggleInfoPanelButton: document.getElementById('toggle-toolbar-right'),
+			resizerLeft: document.getElementById('resizer-left'),
+			resizerRight: document.getElementById('resizer-right'),
 		};
 		
 		this.elements.svg.addEventListener('click', (e) => controller.handleSVGClick(e));
@@ -987,6 +996,11 @@ const UI = {
 		this.elements.langButtons.forEach(button => {
 			button.addEventListener('click', (e) => controller.changeLanguage(e.currentTarget.dataset.lang));
 		});
+
+		this.elements.toggleToolbarButton.addEventListener('click', () => controller.toggleToolbar());
+		this.elements.toggleInfoPanelButton.addEventListener('click', () => controller.toggleInfoPanel());
+		this.elements.resizerLeft.addEventListener('mousedown', (e) => controller.handleResizeStart(e, 'left'));
+		this.elements.resizerRight.addEventListener('mousedown', (e) => controller.handleResizeStart(e, 'right'));
 	},
 	
 	render(state) {
@@ -1389,12 +1403,14 @@ const AppController = {
 		if (!this.loadStateFromLocalStorage()) {
 			AppState.init();
 		}
+		this.applyLayoutState();
 		document.documentElement.lang = AppState.currentLanguage;
 		UI.updateStaticTexts();
 		UI.render(AppState);
 	},
 
 	handlePanStart(event) {
+		if (AppState.activeResizer) return;
 		if (event.button !== 1 || event.target.classList.contains('vertex-handle')) return;
 		event.preventDefault();
 		AppState.isPanning = true;
@@ -1422,6 +1438,8 @@ const AppController = {
 	},
 
 	handleMouseMove(event) {
+		if (AppState.activeResizer) return;
+
 		if (AppState.isPanning) {
 			event.preventDefault();
 			AppState.dragOccurred = true;
@@ -1542,6 +1560,9 @@ const AppController = {
 	},
 	
 	handlePanEnd() {
+		if (AppState.activeResizer) {
+			this.handleResizeEnd();
+		}
 		AppState.isPanning = false;
 	},
 
@@ -1574,7 +1595,7 @@ const AppController = {
 	},
 
 	handleSVGClick(event) {
-		if (AppState.isProcessing || AppState.dragOccurred) return;
+		if (AppState.activeResizer || AppState.isProcessing || AppState.dragOccurred) return;
 		UI.displayError('');
 		
 		const svgRect = UI.elements.svg.getBoundingClientRect();
@@ -1983,6 +2004,98 @@ const AppController = {
 		UI.render(AppState);
 	},
 	
+	toggleToolbar() {
+		AppState.isToolbarCollapsed = !AppState.isToolbarCollapsed;
+		document.body.classList.toggle('left-panel-collapsed', AppState.isToolbarCollapsed);
+		this.saveStateToLocalStorage();
+		UI.render(AppState);
+	},
+
+	toggleInfoPanel() {
+		AppState.isInfoPanelCollapsed = !AppState.isInfoPanelCollapsed;
+		document.body.classList.toggle('right-panel-collapsed', AppState.isInfoPanelCollapsed);
+		this.saveStateToLocalStorage();
+		UI.render(AppState);
+	},
+
+	handleResizeStart(event, resizer) {
+		event.preventDefault();
+		AppState.activeResizer = resizer;
+		document.body.classList.add('is-resizing');
+		this.boundResizeMove = this.handleResizeMove.bind(this);
+		this.boundResizeEnd = this.handleResizeEnd.bind(this);
+		window.addEventListener('mousemove', this.boundResizeMove);
+		window.addEventListener('mouseup', this.boundResizeEnd);
+	},
+
+	handleResizeMove(event) {
+		if (!AppState.activeResizer) return;
+		
+		console.group(`Resize Move: ${AppState.activeResizer}`);
+		
+		const MIN_PANEL_WIDTH = 150;
+		const windowWidth = window.innerWidth;
+		const minCanvasWidth = windowWidth * 0.6;
+
+		console.log(`Window Width (F): ${windowWidth}px, Min Canvas Width (C_min): ${minCanvasWidth.toFixed(2)}px`);
+
+		if (AppState.activeResizer === 'left') {
+			const rightPanelWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--layout-panel-width')) || 0;
+			const maxLeftPanelWidth = windowWidth - rightPanelWidth - minCanvasWidth;
+			const desiredWidth = event.clientX;
+			
+			const effectiveMinWidth = Math.min(MIN_PANEL_WIDTH, Math.max(0, maxLeftPanelWidth));
+			const clampedWidth = Math.max(effectiveMinWidth, Math.min(desiredWidth, maxLeftPanelWidth));
+
+			console.log(`Right Panel (D): ${rightPanelWidth.toFixed(2)}px`);
+			console.log(`Max Left Panel Width (G_max = F-D-C_min): ${maxLeftPanelWidth.toFixed(2)}px`);
+			console.log(`Desired Left Width (Mouse X): ${desiredWidth}px`);
+			console.log(`Effective Min Width: ${effectiveMinWidth.toFixed(2)}px`);
+			console.log(`--- FINAL Clamped Left Width: ${clampedWidth.toFixed(2)}px ---`);
+			
+			document.documentElement.style.setProperty('--layout-toolbar-width', `${clampedWidth}px`);
+
+		} else if (AppState.activeResizer === 'right') {
+			const leftPanelWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--layout-toolbar-width')) || 0;
+			const maxRightPanelWidth = windowWidth - leftPanelWidth - minCanvasWidth;
+			const desiredWidth = windowWidth - event.clientX;
+
+			const effectiveMinWidth = Math.min(MIN_PANEL_WIDTH, Math.max(0, maxRightPanelWidth));
+			const clampedWidth = Math.max(effectiveMinWidth, Math.min(desiredWidth, maxRightPanelWidth));
+
+			console.log(`Left Panel (G): ${leftPanelWidth.toFixed(2)}px`);
+			console.log(`Max Right Panel Width (D_max = F-G-C_min): ${maxRightPanelWidth.toFixed(2)}px`);
+			console.log(`Desired Right Width (F - Mouse X): ${desiredWidth.toFixed(2)}px`);
+			console.log(`Effective Min Width: ${effectiveMinWidth.toFixed(2)}px`);
+			console.log(`--- FINAL Clamped Right Width: ${clampedWidth.toFixed(2)}px ---`);
+
+			document.documentElement.style.setProperty('--layout-panel-width', `${clampedWidth}px`);
+		}
+		
+		console.groupEnd();
+		UI.render(AppState);
+	},
+
+	handleResizeEnd() {
+		if (!AppState.activeResizer) return;
+		AppState.activeResizer = null;
+		document.body.classList.remove('is-resizing');
+		window.removeEventListener('mousemove', this.boundResizeMove);
+		window.removeEventListener('mouseup', this.boundResizeEnd);
+		this.saveStateToLocalStorage();
+	},
+	
+	applyLayoutState() {
+		const rootStyle = document.documentElement.style;
+		const computedStyle = getComputedStyle(document.documentElement);
+
+		rootStyle.setProperty('--layout-toolbar-width', AppState.layout?.toolbarWidth || computedStyle.getPropertyValue('--layout-toolbar-width'));
+		rootStyle.setProperty('--layout-panel-width', AppState.layout?.panelWidth || computedStyle.getPropertyValue('--layout-panel-width'));
+
+		document.body.classList.toggle('left-panel-collapsed', AppState.isToolbarCollapsed);
+		document.body.classList.toggle('right-panel-collapsed', AppState.isInfoPanelCollapsed);
+	},
+	
 	saveStateToLocalStorage() {
 		try {
 			const stateToSave = {
@@ -1992,6 +2105,12 @@ const AppController = {
 				isXRayMode: AppState.isXRayMode,
 				viewBox: AppState.viewBox,
 				currentLanguage: AppState.currentLanguage,
+				isToolbarCollapsed: AppState.isToolbarCollapsed,
+				isInfoPanelCollapsed: AppState.isInfoPanelCollapsed,
+				layout: {
+					toolbarWidth: getComputedStyle(document.documentElement).getPropertyValue('--layout-toolbar-width'),
+					panelWidth: getComputedStyle(document.documentElement).getPropertyValue('--layout-panel-width'),
+				}
 			};
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
 		} catch (error) {
@@ -2016,6 +2135,9 @@ const AppController = {
 			AppState.isXRayMode = savedState.isXRayMode || false;
 			AppState.viewBox = savedState.viewBox;
 			AppState.currentLanguage = savedState.currentLanguage || 'en';
+			AppState.isToolbarCollapsed = savedState.isToolbarCollapsed || false;
+			AppState.isInfoPanelCollapsed = savedState.isInfoPanelCollapsed || false;
+			AppState.layout = savedState.layout || {};
 			
 			AppState.selectedVertices = [];
 			AppState.isProcessing = false;

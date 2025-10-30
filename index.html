@@ -10,8 +10,12 @@
 	<main id="canvas-container">
 		<svg id="origami-svg" width="100%" height="100%"></svg>
 	</main>
-
+	
+	<button id="toggle-toolbar-left" class="panel-toggle-button"><i class="fa-solid fa-chevron-left"></i></button>
+	<button id="toggle-toolbar-right" class="panel-toggle-button"><i class="fa-solid fa-chevron-right"></i></button>
+	
 	<nav id="toolbar-left">
+		<div id="resizer-left" class="resizer"></div>
 		<h4 data-i18n="toolHeader"></h4>
 		<div class="tool-group">
 			<button id="add-point-button" class="tool-button" data-i18n="addPointTool"></button>
@@ -34,11 +38,7 @@
 		</div>
 	</nav>
 
-	<header id="actions-top">
-		<div id="lang-selector">
-			<button data-lang="fr" class="lang-button">FR</button>
-			<button data-lang="en" class="lang-button active">EN</button>
-		</div>
+	<header id="toolbar-top">
 		<button id="fold-valley-button" disabled><i class="fa-solid fa-water"></i><span data-i18n="foldValleyButton"></span></button>
 		<button id="fold-mountain-button" disabled><i class="fa-solid fa-mountain"></i><span data-i18n="foldMountainButton"></span></button>
 		<button id="flip-button"><i class="fa-solid fa-right-left"></i><span data-i18n="flipButton"></span></button>
@@ -49,7 +49,8 @@
 		<button id="xray-button"><i class="fa-solid fa-x-ray"></i><span data-i18n="xrayButton"></span></button>
 	</header>
 
-	<aside id="info-panel">
+	<aside id="toolbar-right">
+		<div id="resizer-right" class="resizer"></div>
 		<h4 data-i18n="infoHeader"></h4>
 		<div id="info-content">
 			<div class="info-item">
@@ -75,11 +76,13 @@
 				<span class="info-value" id="vertex-count">0</span>
 			</div>
 		</div>
-	</aside>
-
-	<aside id="history-panel">
 		<h4 data-i18n="historyHeader"></h4>
 		<ul id="history-list"></ul>
+		
+		<div id="lang-selector">
+			<button data-lang="fr" class="lang-button">FR</button>
+			<button data-lang="en" class="lang-button active">EN</button>
+		</div>
 	</aside>
 	
 	<footer id="page-footer">

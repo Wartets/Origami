@@ -50,9 +50,12 @@
 	--color-edge-handle-hover: var(--palette-yellow-highlight);
 
 	/* Layout */
-	--layout-toolbar-width: 200px;
-	--layout-panel-width: 200px;
+	--layout-toolbar-width: 250px;
+	--layout-panel-width: 250px;
 	--layout-header-height: 80px;
+	--resizer-width: 5px;
+	--collapsed-panel-width: 10px;
+	--panel-toggle-button-size: 24px;
 
 	/* Spacing */
 	--spacing-base: 15px;
@@ -92,24 +95,125 @@ body {
 	height: 100vh;
 	display: grid;
 	grid-template-columns: var(--layout-toolbar-width) 1fr var(--layout-panel-width);
-	grid-template-rows: var(--layout-header-height) auto 1fr auto;
+	grid-template-rows: var(--layout-header-height) 1fr auto;
 	grid-template-areas:
-		"toolbar-left actions-top info-panel"
-		"toolbar-left canvas-container info-panel"
-		"toolbar-left canvas-container history-panel"
-		"toolbar-left page-footer history-panel";
+		"toolbar-left toolbar-top toolbar-right"
+		"toolbar-left canvas-container toolbar-right"
+		"toolbar-left page-footer toolbar-right";
+	/* transition: grid-template-columns var(--transition-duration-medium) var(--transition-timing-function); */
 }
 
+body.is-resizing #origami-svg {
+	pointer-events: none;
+	cursor: col-resize;
+}
+
+body.left-panel-collapsed {
+	grid-template-columns: var(--collapsed-panel-width) 1fr var(--layout-panel-width);
+}
+
+body.right-panel-collapsed {
+	grid-template-columns: var(--layout-toolbar-width) 1fr var(--collapsed-panel-width);
+}
+
+body.left-panel-collapsed.right-panel-collapsed {
+	grid-template-columns: var(--collapsed-panel-width) 1fr var(--collapsed-panel-width);
+}
+	
 h4, p {
 	margin-top: 0;
 }
 
-#canvas-container { grid-area: canvas-container; }
-#actions-top { grid-area: actions-top; }
-#toolbar-left { grid-area: toolbar-left; }
-#info-panel { grid-area: info-panel; }
-#history-panel { grid-area: history-panel; }
-#page-footer { grid-area: page-footer; }
+#resizer-left {
+	right: calc(-1 * var(--resizer-width) / 2);
+}
+
+#resizer-right {
+	right: calc(100% - var(--resizer-width) / 2);
+}
+
+.resizer {
+	background-color: var(--palette-transparent);
+	cursor: col-resize;
+	position: absolute;
+	top: 0;
+	width: var(--resizer-width);
+	height: 100%;
+	z-index: 10;
+	/* transition: background-color var(--transition-duration-fast) var(--transition-timing-function); */
+}
+
+.resizer:hover {
+	background-color: var(--color-brand-primary);
+}
+
+.panel-toggle-button {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	width: var(--panel-toggle-button-size);
+	height: var(--panel-toggle-button-size);
+	border-radius: 50%;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--color-border-primary);
+	background-color: var(--color-background-panel);
+	color: var(--color-text-primary);
+	font-size: var(--font-size-base);
+	z-index: 20;
+}
+
+.panel-toggle-button:hover {
+	background-color: var(--color-brand-primary);
+	color: var(--color-text-on-brand);
+}
+
+#toggle-toolbar-left {
+	left: var(--layout-toolbar-width);
+	transform: translate(-50%, -50%);
+	transition: all 0.15s cubic-bezier(0.645, 0.045, 0.355, 1);;
+}
+
+#toggle-toolbar-right {
+	left: auto;
+	right: var(--layout-panel-width);
+	transform: translate(50%, -50%);
+	transition: all 0.15s cubic-bezier(0.645, 0.045, 0.355, 1);;
+}
+
+.left-panel-collapsed #toggle-toolbar-left {
+	left: 25px;
+	transition: all 0.15s cubic-bezier(0.645, 0.045, 0.355, 1);;
+}
+
+.right-panel-collapsed #toggle-toolbar-right {
+	right: 25px;
+	transition: all 0.15s cubic-bezier(0.645, 0.045, 0.355, 1);;
+}
+
+#canvas-container {
+	grid-area: canvas-container;
+}
+
+#toolbar-top {
+	grid-area: toolbar-top;
+}
+
+#toolbar-left {
+	grid-area: toolbar-left;
+	transition: all 0.15s cubic-bezier(0.645, 0.045, 0.355, 1);;
+}
+
+#toolbar-right {
+	grid-area: toolbar-right;
+	transition: all 0.15s cubic-bezier(0.645, 0.045, 0.355, 1);;
+}
+
+#page-footer {
+	grid-area: page-footer;
+}
 
 header, nav, aside {
 	background-color: var(--color-background-panel);
@@ -117,13 +221,19 @@ header, nav, aside {
 	padding: var(--spacing-base);
 }
 
+.left-panel-collapsed #toolbar-left,
+.right-panel-collapsed #toolbar-right {
+	padding: 0;
+	transition: all 0.15s cubic-bezier(0.645, 0.045, 0.355, 1);;
+}
+
 #canvas-container {
 	background-color: var(--color-background-canvas);
 	overflow: hidden;
-	position: relative;
+	min-width: 0;
 }
 
-#actions-top {
+#toolbar-top {
 	display: flex;
 	justify-content: center;
 	align-self: start;
@@ -133,15 +243,12 @@ header, nav, aside {
 	height: var(--layout-header-height);
 }
 
-#toolbar-left, #info-panel, #history-panel {
+#toolbar-left, #toolbar-right {
 	display: flex;
 	flex-direction: column;
 	gap: var(--spacing-base);
+	position: relative;
 }
-
-#toolbar-left { border-right: none; }
-#info-panel { border-left: none; }
-#history-panel { border-left: none; overflow-y: auto; }
 
 #tool-info {
 	border-top: var(--border-width-primary) solid var(--color-border-primary);
@@ -166,7 +273,7 @@ button {
 	width: 100%;
 }
 
-#actions-top button {
+#toolbar-top button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -198,7 +305,6 @@ button:disabled {
 .tool-group {
 	display: flex;
 	flex-direction: column;
-	gap: var(--spacing-extra-small);
 }
 
 #history-list {
@@ -223,6 +329,31 @@ button:disabled {
 #history-list li.active {
 	background-color: var(--color-brand-primary);
 	color: var(--color-text-on-brand);
+}
+
+.left-panel-collapsed #toolbar-left > *:not(.panel-toggle-button),
+.right-panel-collapsed #toolbar-right > *:not(.panel-toggle-button) {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.1s;
+}
+
+.left-panel-collapsed #toolbar-left,
+.right-panel-collapsed #toolbar-right {
+	overflow: hidden;
+}
+
+.left-panel-collapsed #toggle-toolbar-left i {
+	transform: rotate(180deg);
+}
+
+.right-panel-collapsed #toggle-toolbar-right i {
+	transform: rotate(180deg);
+}
+
+.left-panel-collapsed #resizer-left,
+.right-panel-collapsed #resizer-right {
+	display: none;
 }
 
 #origami-svg {
@@ -383,9 +514,9 @@ svg .selection-label {
 #lang-selector {
 	display: flex;
 	gap: var(--spacing-extra-small);
-	position: absolute;
-	right: var(--spacing-base);
-	bottom: var(--spacing-base);
+	align-self: center;
+	margin-top: auto;
+	padding: var(--spacing-base) 0;
 }
 
 .lang-button {

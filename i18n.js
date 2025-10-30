@@ -108,6 +108,8 @@ export const translations = {
 		addPointToolName: "Outil d'Ajout de Point",
 		addPointToolDesc: "Ajoute un nouveau point de construction sur le papier.<br><strong>Astuce :</strong> Maintenez la touche SHIFT enfoncée pour désactiver temporairement le magnétisme.",
 		addPointToolPrompt1: "Cliquez sur la feuille pour ajouter un point.",
+		
+		footerText: '&copy; 2025. Tous droits réservés. Conçu par <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>Voir plus de projets sur <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. Ce projet est sous licence MIT.',
 	},
 	en: {
 		toolHeader: "Folding Tools",
@@ -218,5 +220,7 @@ export const translations = {
 		addPointToolName: "Add Point Tool",
 		addPointToolDesc: "Adds a new construction point to the paper.<br><strong>Tip:</strong> Hold down the SHIFT key to temporarily disable snapping.",
 		addPointToolPrompt1: "Click on the paper to add a point.",
+		
+		footerText: '&copy; 2025. All rights reserved. Designed by <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>See more projects on <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. This project is under the MIT License.',
 	}
 };
