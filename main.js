@@ -16,10 +16,11 @@ const generateUniqueId = () => `id_${uniqueIdCounter++}`;
 const EPSILON = 1e-9;
 
 class Vertex {
-	constructor(x, y) {
+	constructor(x, y, isManual = false) {
 		this.x = x;
 		this.y = y;
 		this.id = generateUniqueId();
+		this.isManual = isManual;
 	}
 }
 
@@ -45,7 +46,7 @@ function cloneMesh(oldMesh) {
 	const vertexMap = new Map();
 
 	oldMesh.vertices.forEach(v => {
-		const newV = new Vertex(v.x, v.y);
+		const newV = new Vertex(v.x, v.y, v.isManual);
 		newV.id = v.id;
 		newMesh.vertices.push(newV);
 		vertexMap.set(v.id, newV);
@@ -71,7 +72,7 @@ function rehydrateMesh(plainMesh) {
 	const vertexMap = new Map();
 
 	plainMesh.vertices.forEach(v => {
-		const newV = new Vertex(v.x, v.y);
+		const newV = new Vertex(v.x, v.y, v.isManual);
 		newV.id = v.id;
 		newMesh.vertices.push(newV);
 		vertexMap.set(v.id, newV);
@@ -399,7 +400,7 @@ const AXIOMS = {
 
 // SECTION: FOLDING LOGIC
 const FoldEngine = {
-	performFold(mesh, foldLine, foldDirection, mobilePoint = null) {
+	performFold(mesh, foldLine, foldDirection, mobilePoint = null, topmostFace = null) {
 		const { p1: foldLineP1, p2: foldLineP2 } = foldLine;
 
 		const faceIdToFace = new Map(mesh.faces.map(f => [f.id, f]));
@@ -489,12 +490,58 @@ const FoldEngine = {
 			}
 			mobileSideSign = Math.sign(sideOfMobilePoint);
 			
-			mobileFaces = newMesh.faces.filter(face => {
-				const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
-				const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
-				const side = GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2);
-				return Math.sign(side) === mobileSideSign;
-			});
+			if (topmostFace) {
+				const originalTopFace = faceIdToFace.get(topmostFace.id);
+				if (originalTopFace) {
+					const targetLayer = originalTopFace.layer;
+
+					const mobileSideCandidates = newMesh.faces.filter(face => {
+						const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
+						const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
+						const side = GEOMETRY.getLineSide({ x: centroidX, y: centroidY }, foldLineP1, foldLineP2);
+						return Math.sign(side) === mobileSideSign;
+					});
+
+					const seedFace = mobileSideCandidates.find(f => f.parentId === topmostFace.id);
+
+					if (seedFace) {
+						const facesAtTargetLayer = mobileSideCandidates.filter(f => {
+							const originalFace = faceIdToFace.get(f.parentId);
+							return originalFace && originalFace.layer === targetLayer;
+						});
+
+						mobileFaces = [];
+						const queue = [seedFace];
+						const visited = new Set([seedFace.id]);
+
+						while (queue.length > 0) {
+							const currentFace = queue.shift();
+							mobileFaces.push(currentFace);
+							const currentVertexIds = new Set(currentFace.vertices.map(v => v.id));
+
+							for (const neighbor of facesAtTargetLayer) {
+								if (visited.has(neighbor.id)) continue;
+								for (const vertex of neighbor.vertices) {
+									if (currentVertexIds.has(vertex.id)) {
+										visited.add(neighbor.id);
+										queue.push(neighbor);
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (!mobileFaces) {
+				mobileFaces = newMesh.faces.filter(face => {
+					const centroidX = face.vertices.reduce((sum, v) => sum + v.x, 0) / face.vertices.length;
+					const centroidY = face.vertices.reduce((sum, v) => sum + v.y, 0) / face.vertices.length;
+					const side = GEOMETRY.getLineSide({x: centroidX, y: centroidY}, foldLineP1, foldLineP2);
+					return Math.sign(side) === mobileSideSign;
+				});
+			}
 			staticFaces = newMesh.faces.filter(face => !mobileFaces.includes(face));
 		} else {
 			const side1Faces = [], side2Faces = [];
@@ -885,16 +932,18 @@ const UI = {
 			}
 		}
 
-		uniqueEdges.forEach(({ v1, v2 }) => {
-			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-			line.setAttribute('x1', v1.x); line.setAttribute('y1', v1.y);
-			line.setAttribute('x2', v2.x); line.setAttribute('y2', v2.y);
-			line.setAttribute('data-v1-id', v1.id);
-			line.setAttribute('data-v2-id', v2.id);
-			line.classList.add('edge-handle');
-			line.style.strokeWidth = `${10 * scaleFactor}px`;
-			this.elements.svg.appendChild(line);
-		});
+		if (currentAxiom !== 'TOOL_ADD_POINT') {
+			uniqueEdges.forEach(({ v1, v2 }) => {
+				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+				line.setAttribute('x1', v1.x); line.setAttribute('y1', v1.y);
+				line.setAttribute('x2', v2.x); line.setAttribute('y2', v2.y);
+				line.setAttribute('data-v1-id', v1.id);
+				line.setAttribute('data-v2-id', v2.id);
+				line.classList.add('edge-handle');
+				line.style.strokeWidth = `${10 * scaleFactor}px`;
+				this.elements.svg.appendChild(line);
+			});
+		}
 
 		if (previewPoint) {
 			if (previewPoint.snapLine) {
@@ -946,6 +995,9 @@ const UI = {
 
 				circle.setAttribute('data-vertex-id', vertex.id);
 				circle.classList.add('vertex-handle');
+				if (vertex.isManual) {
+					circle.classList.add('manual-vertex');
+				}
 
 				const baseStrokeWidth = 2;
 				circle.style.strokeWidth = `${baseStrokeWidth * scaleFactor}px`;
@@ -1271,7 +1323,15 @@ const AppController = {
 		const clickY = AppState.viewBox.y + (event.clientY - svgRect.top) * scale;
 		
 		if (AppState.currentAxiom === 'TOOL_ADD_POINT') {
-			const pointToAdd = AppState.previewPoint ? new Vertex(AppState.previewPoint.x, AppState.previewPoint.y) : new Vertex(clickX, clickY);
+			const pointToAdd = AppState.previewPoint ? new Vertex(AppState.previewPoint.x, AppState.previewPoint.y, true) : new Vertex(clickX, clickY, true);
+			
+			for (const v of AppState.mesh.vertices) {
+				if (GEOMETRY.distSq(pointToAdd, v) < EPSILON) {
+					UI.displayError(t('errorPointExists'));
+					return;
+				}
+			}
+
 			const isInside = AppState.mesh.faces.some(face => GEOMETRY.isPointInPolygon(pointToAdd, face.vertices));
 
 			if (isInside) {
@@ -1418,7 +1478,18 @@ const AppController = {
 			case 'AXIOM_5': mobilePoint = p2; break;
 		}
 		
-		const foldResult = FoldEngine.performFold(AppState.mesh, foldLine, foldDirection, mobilePoint);
+		let topmostFace = null;
+		if (mobilePoint) {
+			const sortedFaces = [...AppState.mesh.faces].sort((a, b) => b.layer - a.layer);
+			for (const face of sortedFaces) {
+				if (GEOMETRY.isPointInPolygon(mobilePoint, face.vertices)) {
+					topmostFace = face;
+					break;
+				}
+			}
+		}
+
+		const foldResult = FoldEngine.performFold(AppState.mesh, foldLine, foldDirection, mobilePoint, topmostFace);
 		
 		if (foldResult.mesh) {
 			UI.displayError('');

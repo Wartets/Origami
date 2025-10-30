@@ -32,13 +32,13 @@ export const translations = {
 		axiom1Desc: "Crée un pli passant par deux points existants P1 et P2.<br><strong>Mathématiquement :</strong> Définit une ligne unique dans le plan euclidien.",
 		axiom1Prompt1: "Sélectionnez le premier point (P1).",
 		axiom1Prompt2: "Sélectionnez le second point (P2) pour définir la ligne de pli.",
-		axiom1PromptReady: "Prêt à plier.",
+		axiom1PromptReady: "Cliquez sur une face pour la plier.",
 
 		axiom2Name: "Axiome 2",
 		axiom2Desc: "Amène un point P1 sur un point P2.<br><strong>Mathématiquement :</strong> Le pli est la médiatrice du segment [P1, P2].",
 		axiom2Prompt1: "Sélectionnez le point à déplacer (P1).",
 		axiom2Prompt2: "Sélectionnez le point de destination (P2).",
-		axiom2PromptReady: "P1 sera plié sur P2.",
+		axiom2PromptReady: "Cliquez sur la face contenant P1 pour la plier.",
 
 		axiom3Name: "Axiome 3",
 		axiom3Desc: "Superpose deux lignes L1 et L2.<br><strong>Mathématiquement :</strong> Le pli est la bissectrice de l'angle formé par L1 et L2.",
@@ -46,14 +46,14 @@ export const translations = {
 		axiom3Prompt2: "Sélectionnez le second point de la Ligne 1.",
 		axiom3Prompt3: "Ligne 1 définie. Sélectionnez le premier point de la Ligne 2 (ou une arête).",
 		axiom3Prompt4: "Sélectionnez le second point de la Ligne 2.",
-		axiom3PromptReady: "L1 sera pliée sur L2.",
+		axiom3PromptReady: "Cliquez sur une face pour initier le pli.",
 
 		axiom4Name: "Axiome 4",
 		axiom4Desc: "Crée un pli passant par un point P et perpendiculaire à une ligne L.<br><strong>Mathématiquement :</strong> Le vecteur directeur du pli est orthogonal au vecteur directeur de L.",
 		axiom4Prompt1: "Sélectionnez le premier point de la ligne L (ou une arête).",
 		axiom4Prompt2: "Sélectionnez le second point de la ligne L.",
 		axiom4Prompt3: "Ligne L définie. Sélectionnez le point P par lequel le pli doit passer.",
-		axiom4PromptReady: "Pli perpendiculaire à L passant par P.",
+		axiom4PromptReady: "Cliquez sur une face pour la plier.",
 
 		axiom5Name: "Axiome 5",
 		axiom5Desc: "Crée un pli passant par P1 qui amène un point P2 sur une ligne L.<br><strong>Mathématiquement :</strong> Le point P2' (destination de P2 sur L) est à l'intersection de L et du cercle de centre P1 et de rayon |P1P2|. Le pli est la médiatrice de [P2, P2'].",
@@ -61,7 +61,7 @@ export const translations = {
 		axiom5Prompt2: "Sélectionnez P2 (le point à amener sur la ligne L).",
 		axiom5Prompt3: "Points P1 et P2 définis. Sélectionnez le premier point de la ligne L (ou une arête).",
 		axiom5Prompt4: "Sélectionnez le second point de la ligne L.",
-		axiom5PromptReady: "Amène P2 sur L par un pli passant par P1.",
+		axiom5PromptReady: "Cliquez sur la face contenant P2 pour la plier.",
 		
 		axiom6Name: "Axiome 6",
 		axiom6Desc: "Amène P1 sur L1 et P2 sur L2. Non implémenté.<br><strong>Mathématiquement :</strong> Le pli est une tangente commune à deux paraboles. La recherche de cette tangente revient à résoudre une équation du troisième degré.",
@@ -77,6 +77,8 @@ export const translations = {
 		errorAxiom5NoSolution: "L'axiome 5 n'a pas de solution : La distance du point pivot (P1) à la ligne (L) est supérieure à la distance |P1P2|.",
 		errorFoldLineMissesPaper: "Pliage impossible : La ligne de pli calculée n'intersecte pas la feuille de papier.",
 		errorIdenticalLines: "Sélection invalide pour l'Axiome 3 : Les deux lignes sélectionnées sont identiques.",
+		errorFaceSelection: "Sélection de face invalide : La face cliquée n'est pas du côté mobile attendu du pli.",
+		errorPointExists: "Erreur : Un point existe déjà à cet emplacement ou très proche.",
 
 		historyInit: "Initialisation",
 		historyFold: "Pli {{axiomName}} ({{foldTypeName}})",
@@ -87,6 +89,8 @@ export const translations = {
 		addPointToolName: "Outil d'Ajout de Point",
 		addPointToolDesc: "Ajoute un nouveau point de construction sur le papier.<br><strong>Astuce :</strong> Maintenez la touche SHIFT enfoncée pour désactiver temporairement le magnétisme.",
 		addPointToolPrompt1: "Cliquez sur la feuille pour ajouter un point.",
+		
+		footerText: '&copy; 2025. Tous droits réservés. Conçu par <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>Voir plus de projets sur <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. Ce projet est sous licence MIT.',
 	},
 	en: {
 		toolHeader: "Folding Tools",
@@ -121,13 +125,13 @@ export const translations = {
 		axiom1Desc: "Creates a fold passing through two existing points P1 and P2.<br><strong>Mathematically:</strong> Defines a unique line in the Euclidean plane.",
 		axiom1Prompt1: "Select the first point (P1).",
 		axiom1Prompt2: "Select the second point (P2) to define the fold line.",
-		axiom1PromptReady: "Ready to fold.",
+		axiom1PromptReady: "Click a face to fold.",
 
 		axiom2Name: "Axiom 2",
 		axiom2Desc: "Brings a point P1 onto a point P2.<br><strong>Mathematically:</strong> The fold is the perpendicular bisector of the segment [P1, P2].",
 		axiom2Prompt1: "Select the point to move (P1).",
 		axiom2Prompt2: "Select the destination point (P2).",
-		axiom2PromptReady: "P1 will be folded onto P2.",
+		axiom2PromptReady: "Click the face containing P1 to fold it.",
 
 		axiom3Name: "Axiom 3",
 		axiom3Desc: "Superimposes two lines L1 and L2.<br><strong>Mathematically:</strong> The fold is the angle bisector of the angle formed by L1 and L2.",
@@ -135,14 +139,14 @@ export const translations = {
 		axiom3Prompt2: "Select the second point of Line 1.",
 		axiom3Prompt3: "Line 1 defined. Select the first point of Line 2 (or an edge).",
 		axiom3Prompt4: "Select the second point of Line 2.",
-		axiom3PromptReady: "L1 will be folded onto L2.",
+		axiom3PromptReady: "Click a face to initiate the fold.",
 
 		axiom4Name: "Axiom 4",
 		axiom4Desc: "Creates a fold passing through a point P and perpendicular to a line L.<br><strong>Mathematically:</strong> The direction vector of the fold is orthogonal to the direction vector of L.",
 		axiom4Prompt1: "Select the first point of line L (or an edge).",
 		axiom4Prompt2: "Select the second point of line L.",
 		axiom4Prompt3: "Line L defined. Select point P through which the fold must pass.",
-		axiom4PromptReady: "Fold perpendicular to L passing through P.",
+		axiom4PromptReady: "Click a face to fold.",
 
 		axiom5Name: "Axiom 5",
 		axiom5Desc: "Creates a fold through P1 that brings point P2 onto line L.<br><strong>Mathematically:</strong> Point P2' (destination of P2 on L) is at the intersection of L and the circle with center P1 and radius |P1P2|. The fold is the perpendicular bisector of [P2, P2'].",
@@ -150,7 +154,7 @@ export const translations = {
 		axiom5Prompt2: "Select P2 (the point to bring onto line L).",
 		axiom5Prompt3: "Points P1 and P2 defined. Select the first point of line L (or an edge).",
 		axiom5Prompt4: "Select the second point of line L.",
-		axiom5PromptReady: "Brings P2 onto L with a fold passing through P1.",
+		axiom5PromptReady: "Click the face containing P2 to fold it.",
 		
 		axiom6Name: "Axiom 6",
 		axiom6Desc: "Brings P1 onto L1 and P2 onto L2. Not implemented.<br><strong>Mathematically:</strong> The fold is a common tangent to two parabolas. Finding this tangent involves solving a cubic equation.",
@@ -166,6 +170,8 @@ export const translations = {
 		errorAxiom5NoSolution: "Axiom 5 has no solution: The distance from the pivot point (P1) to the line (L) is greater than the distance |P1P2|.",
 		errorFoldLineMissesPaper: "Folding failed: The calculated fold line does not intersect with the paper.",
 		errorIdenticalLines: "Invalid selection for Axiom 3: The two selected lines are identical.",
+		errorFaceSelection: "Invalid face selection: The clicked face is not on the expected mobile side of the fold.",
+		errorPointExists: "Error: A point already exists at or very near this location.",
 
 		historyInit: "Initialization",
 		historyFold: "{{axiomName}} Fold ({{foldTypeName}})",
@@ -176,5 +182,6 @@ export const translations = {
 		addPointToolName: "Add Point Tool",
 		addPointToolDesc: "Adds a new construction point to the paper.<br><strong>Tip:</strong> Hold down the SHIFT key to temporarily disable snapping.",
 		addPointToolPrompt1: "Click on the paper to add a point.",
+		footerText: '&copy; 2025. All rights reserved. Designed by <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>See more projects on <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. This project is under the MIT License.',
 	}
 };
