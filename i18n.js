@@ -106,6 +106,10 @@ export const translations = {
 		historyFold: "Pli {{axiomName}} ({{foldTypeName}})",
 		historyFlip: "Retourner la feuille",
 		historyAddPoint: "Ajout d'un point",
+		historyImport: "Importation CP",
+		importCpButton: "Importer CP",
+		historyExport: "Exportation CP",
+		exportCpButton: "Exporter CP",
 
 		addPointTool: "Ajouter Point",
 		addPointToolName: "Outil d'Ajout de Point",
@@ -222,6 +226,10 @@ export const translations = {
 		historyFold: "{{axiomName}} Fold ({{foldTypeName}})",
 		historyFlip: "Flip Paper",
 		historyAddPoint: "Add Point",
+		historyImport: "CP Import",
+		importCpButton: "Import CP",
+		historyExport: "CP Export",
+		exportCpButton: "Export CP",
 
 		addPointTool: "Add Point",
 		addPointToolName: "Add Point Tool",

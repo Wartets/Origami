@@ -32,6 +32,7 @@
 			<p id="current-tool-desc"></p>
 		</div>
 		
+		
 		<div id="error-console">
 			<h4 data-i18n="consoleHeader"></h4>
 			<p id="error-message"></p>
@@ -50,6 +51,8 @@
 	</header>
 
 	<aside id="toolbar-right">
+		<button id="import-cp-button"><i class="fa-solid fa-file-import"></i><span data-i18n="importCpButton"></span></button>
+		<button id="export-cp-button" class="hidden"><i class="fa-solid fa-file-export"></i><span data-i18n="exportCpButton"></span></button>
 		<div id="resizer-right" class="resizer"></div>
 		<h4 data-i18n="infoHeader"></h4>
 		<div id="info-content">
@@ -100,6 +103,8 @@
 	<footer id="page-footer">
 		<p data-i18n="footerText"></p>
 	</footer>
+	
+	<input type="file" id="import-cp-input" accept=".cp" style="display: none;">
 	
 	<script src="main.js" type="module"></script>
 </body>

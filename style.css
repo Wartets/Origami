@@ -86,6 +86,10 @@
 	box-sizing: border-box;
 }
 
+.hidden {
+	display: none;
+}
+
 body {
 	font-family: var(--font-family-monospace);
 	background-color: var(--color-background-app);

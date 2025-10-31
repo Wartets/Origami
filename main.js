@@ -941,6 +941,8 @@ const UI = {
 			undoButton: document.getElementById('undo-button'),
 			redoButton: document.getElementById('redo-button'),
 			resetButton: document.getElementById('reset-button'),
+			importCpButton: document.getElementById('import-cp-button'),
+			importCpInput: document.getElementById('import-cp-input'),
 			xrayButton: document.getElementById('xray-button'),
 			axiomButtons: {
 				'TOOL_ADD_POINT': document.getElementById('add-point-button'),
@@ -978,6 +980,10 @@ const UI = {
 		this.elements.svg.addEventListener('mouseup', () => controller.handlePanEnd());
 		this.elements.svg.addEventListener('mouseleave', () => controller.handleMouseLeave());
 		this.elements.svg.addEventListener('wheel', (e) => controller.handleZoom(e));
+		this.elements.svg.addEventListener('touchstart', (e) => controller.handlePanStart(e), { passive: false });
+		this.elements.svg.addEventListener('touchmove', (e) => controller.handleMouseMove(e), { passive: false });
+		this.elements.svg.addEventListener('touchend', () => controller.handlePanEnd());
+		this.elements.svg.addEventListener('touchcancel', () => controller.handlePanEnd());
 
 		this.elements.foldValleyButton.addEventListener('click', () => controller.executeFold('valley'));
 		this.elements.foldMountainButton.addEventListener('click', () => controller.executeFold('mountain'));
@@ -986,6 +992,8 @@ const UI = {
 		this.elements.undoButton.addEventListener('click', () => controller.undo());
 		this.elements.redoButton.addEventListener('click', () => controller.redo());
 		this.elements.resetButton.addEventListener('click', () => controller.reset());
+		this.elements.importCpButton.addEventListener('click', () => this.elements.importCpInput.click());
+		this.elements.importCpInput.addEventListener('change', (e) => controller.handleCpImport(e));
 		this.elements.xrayButton.addEventListener('click', () => controller.toggleXRay());
 		this.elements.historyListEl.addEventListener('click', (e) => controller.handleHistoryClick(e));
 
@@ -1363,6 +1371,7 @@ const UI = {
 		this.elements.redoButton.disabled = isProcessing || historyIndex >= history.length - 1;
 		this.elements.resetButton.disabled = isProcessing;
 		this.elements.xrayButton.disabled = isProcessing;
+		this.elements.importCpButton.disabled = isProcessing;
 
 		for (const axiomId in this.elements.axiomButtons) {
 			this.elements.axiomButtons[axiomId].classList.toggle('active', axiomId === currentAxiom);
@@ -1429,20 +1438,30 @@ const AppController = {
 		UI.init(this);
 		if (!this.loadStateFromLocalStorage()) {
 			AppState.init();
+			if (window.innerWidth <= 800) {
+				AppState.isToolbarCollapsed = true;
+				AppState.isInfoPanelCollapsed = true;
+			}
 		}
 		this.applyLayoutState();
 		document.documentElement.lang = AppState.currentLanguage;
 		UI.updateStaticTexts();
 		UI.render(AppState);
+		window.addEventListener('keydown', (e) => this.handleKeyDown(e));
 	},
 
 	handlePanStart(event) {
 		if (AppState.activeResizer) return;
-		if (event.button !== 1 || event.target.classList.contains('vertex-handle')) return;
+		const isTouchEvent = event.type.startsWith('touch');
+		if (!isTouchEvent && event.button !== 1) return;
+		if (isTouchEvent && event.touches.length !== 1) return;
+		if (event.target.classList.contains('vertex-handle')) return;
+
 		event.preventDefault();
 		AppState.isPanning = true;
 		document.body.classList.add('is-panning');
-		AppState.panStartPoint = { x: event.clientX, y: event.clientY };
+		const point = isTouchEvent ? event.touches[0] : event;
+		AppState.panStartPoint = { x: point.clientX, y: point.clientY };
 		AppState.dragOccurred = false;
 	},
 
@@ -1468,19 +1487,23 @@ const AppController = {
 	handleMouseMove(event) {
 		if (AppState.activeResizer) return;
 
+		const isTouchEvent = event.type.startsWith('touch');
+		if (isTouchEvent && event.touches.length !== 1) return;
+		const point = isTouchEvent ? event.touches[0] : event;
+
 		if (AppState.isPanning) {
 			event.preventDefault();
 			AppState.dragOccurred = true;
 
-			const dx = event.clientX - AppState.panStartPoint.x;
-			const dy = event.clientY - AppState.panStartPoint.y;
+			const dx = point.clientX - AppState.panStartPoint.x;
+			const dy = point.clientY - AppState.panStartPoint.y;
 			
 			const scale = AppState.viewBox.width / UI.elements.svg.clientWidth;
 
 			AppState.viewBox.x -= dx * scale;
 			AppState.viewBox.y -= dy * scale;
 
-			AppState.panStartPoint = { x: event.clientX, y: event.clientY };
+			AppState.panStartPoint = { x: point.clientX, y: point.clientY };
 			
 			UI.render(AppState);
 			return;
@@ -1488,8 +1511,8 @@ const AppController = {
 
 		const svgRect = UI.elements.svg.getBoundingClientRect();
 		const scale = AppState.viewBox.width / svgRect.width;
-		const mouseX = AppState.viewBox.x + (event.clientX - svgRect.left) * scale;
-		const mouseY = AppState.viewBox.y + (event.clientY - svgRect.top) * scale;
+		const mouseX = AppState.viewBox.x + (point.clientX - svgRect.left) * scale;
+		const mouseY = AppState.viewBox.y + (point.clientY - svgRect.top) * scale;
 		AppState.cursorPosition = { x: mouseX, y: mouseY };
 
 		if (AppState.currentAxiom === 'TOOL_ADD_POINT') {
@@ -1508,6 +1531,152 @@ const AppController = {
 		}
 		
 		UI.render(AppState);
+	},
+	
+	handleKeyDown(event) {
+		if (event.target.tagName === 'INPUT') return;
+
+		if (event.ctrlKey || event.metaKey) {
+			switch (event.key.toLowerCase()) {
+				case 'z':
+					event.preventDefault();
+					if (event.shiftKey) {
+						this.redo();
+					} else {
+						this.undo();
+					}
+					break;
+				case 'y':
+					event.preventDefault();
+					if (event.shiftKey) {
+						this.undo();
+					} else {
+						this.redo();
+					}
+					break;
+			}
+		} else {
+			if (AppState.currentAxiom === 'AXIOM_6' && AppState.axiom6Solutions.length > 0) {
+				let index = AppState.selectedAxiom6SolutionIndex === null ? -1 : AppState.selectedAxiom6SolutionIndex;
+				if (event.key === 'ArrowUp') {
+					event.preventDefault();
+					index = (index - 1 + AppState.axiom6Solutions.length) % AppState.axiom6Solutions.length;
+					AppState.selectedAxiom6SolutionIndex = index;
+					UI.render(AppState);
+					return;
+				} else if (event.key === 'ArrowDown') {
+					event.preventDefault();
+					index = (index + 1) % AppState.axiom6Solutions.length;
+					AppState.selectedAxiom6SolutionIndex = index;
+					UI.render(AppState);
+					return;
+				}
+			}
+			
+			let key = event.key;
+			if (key.startsWith('Numpad')) {
+				key = key.slice(6);
+			}
+			const toolMapping = {
+				'0': 'TOOL_ADD_POINT',
+				'1': 'AXIOM_1',
+				'2': 'AXIOM_2',
+				'3': 'AXIOM_3',
+				'4': 'AXIOM_4',
+				'5': 'AXIOM_5',
+				'6': 'AXIOM_6',
+				'7': 'AXIOM_7',
+			};
+			const axiomId = toolMapping[key];
+			if (axiomId) {
+				event.preventDefault();
+				this.changeAxiom(axiomId);
+				return;
+			}
+
+			switch (event.key) {
+				case 'Enter':
+					event.preventDefault();
+					const axiomInfo = AXIOMS[AppState.currentAxiom];
+					const isAxiom6Ready = AppState.currentAxiom === 'AXIOM_6' && AppState.selectedVertices.length === axiomInfo.requiredPoints;
+					const isFoldPossible = !AppState.isProcessing && AppState.currentAxiom !== 'TOOL_ADD_POINT' && 
+						(AppState.selectedVertices.length === axiomInfo.requiredPoints) && 
+						!(isAxiom6Ready && AppState.selectedAxiom6SolutionIndex === null);
+					
+					if (isFoldPossible) {
+						this.executeFold(event.shiftKey ? 'mountain' : 'valley');
+					}
+					break;
+				case 'Escape':
+					this.clearCurrentSelection();
+					break;
+				case 'f':
+				case 'F':
+					this.flipPaper();
+					break;
+				case 'x':
+				case 'X':
+					this.toggleXRay();
+					break;
+				case 'Home':
+					event.preventDefault();
+					this.recenterView();
+					break;
+				case 'Delete':
+					this.reset();
+					break;
+				case '[':
+					this.toggleToolbar();
+					break;
+				case ']':
+					this.toggleInfoPanel();
+					break;
+				case 'ArrowLeft':
+					this.undo();
+					break;
+				case 'ArrowRight':
+					this.redo();
+					break;
+				case '+':
+				case '=':
+					event.preventDefault();
+					this.zoomView(-1);
+					break;
+				case '-':
+					event.preventDefault();
+					this.zoomView(1);
+					break;
+				case 'F2':
+					event.preventDefault();
+					this.startRenameHistoryStep(AppState.historyIndex);
+					break;
+			}
+		}
+	},
+	
+	clearCurrentSelection() {
+		if (AppState.isProcessing) return;
+		AppState.clearSelection();
+		UI.render(AppState);
+	},
+	
+	zoomView(direction) {
+		if (AppState.isProcessing) return;
+		
+		const zoomIntensity = 0.1;
+		const scale = 1 - direction * zoomIntensity;
+
+		const centerX = AppState.viewBox.x + AppState.viewBox.width / 2;
+		const centerY = AppState.viewBox.y + AppState.viewBox.height / 2;
+		
+		AppState.viewBox.width *= scale;
+		AppState.viewBox.height *= scale;
+		
+		AppState.viewBox.x = centerX - AppState.viewBox.width / 2;
+		AppState.viewBox.y = centerY - AppState.viewBox.height / 2;
+
+		UI.render(AppState);
+		this.saveStateToLocalStorage();
 	},
 	
 	getSnapPoint(x, y, shiftPressed, scale) {
@@ -2229,6 +2398,11 @@ const AppController = {
 			AppState.isInfoPanelCollapsed = savedState.isInfoPanelCollapsed || false;
 			AppState.layout = savedState.layout || {};
 			
+			if (window.innerWidth <= 800) {
+				AppState.isToolbarCollapsed = true;
+				AppState.isInfoPanelCollapsed = true;
+			}
+			
 			AppState.selectedVertices = [];
 			AppState.isProcessing = false;
 
@@ -2237,6 +2411,105 @@ const AppController = {
 			console.error("Could not load state from localStorage:", error);
 			return false;
 		}
+	},
+
+	handleCpImport(event) {
+		const file = event.target.files[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			try {
+				const content = e.target.result;
+				const newMesh = this.parseCpFile(content);
+				
+				AppState.mesh = newMesh;
+				const action = { key: 'historyImport' };
+				AppState.history = [{ mesh: cloneMesh(AppState.mesh), action: action }];
+				AppState.historyIndex = 0;
+				AppState.clearSelection();
+
+				this.recenterView();
+				this.saveStateToLocalStorage();
+				UI.render(AppState);
+
+			} catch (error) {
+				console.error("Error parsing CP file:", error);
+				UI.displayError("Failed to parse CP file. " + error.message);
+			} finally {
+				event.target.value = '';
+			}
+		};
+		reader.readAsText(file);
+	},
+
+	parseCpFile(content) {
+		const newMesh = new Mesh();
+		const lines = content.split(/\r?\n/);
+		const size = 600;
+
+		const edgeVertices = new Map();
+		const creases = [];
+
+		lines.forEach(line => {
+			line = line.trim();
+			if (line.startsWith('#') || line === '') return;
+			
+			const parts = line.split(/\s+/);
+			if (parts.length < 5) return;
+
+			const type = parts[0];
+			const [x1, y1, x2, y2] = parts.slice(1).map(parseFloat);
+
+			const p1 = { x: x1 * size, y: (1 - y1) * size };
+			const p2 = { x: x2 * size, y: (1 - y2) * size };
+
+			if ([2, 'E', 'e'].includes(type)) {
+				const key1 = `${p1.x.toFixed(5)},${p1.y.toFixed(5)}`;
+				const key2 = `${p2.x.toFixed(5)},${p2.y.toFixed(5)}`;
+				if (!edgeVertices.has(key1)) edgeVertices.set(key1, new Vertex(p1.x, p1.y));
+				if (!edgeVertices.has(key2)) edgeVertices.set(key2, new Vertex(p2.x, p2.y));
+			} else if ([1, 3, 4, 'M', 'm', 'V', 'v'].includes(type)) {
+				creases.push({ p1, p2 });
+			}
+		});
+
+		let paperVertices = Array.from(edgeVertices.values());
+		if (paperVertices.length < 3) {
+			paperVertices = [
+				new Vertex(0, 0), new Vertex(size, 0),
+				new Vertex(size, size), new Vertex(0, size)
+			];
+		} else {
+			let cx = 0, cy = 0;
+			paperVertices.forEach(p => { cx += p.x; cy += p.y; });
+			cx /= paperVertices.length;
+			cy /= paperVertices.length;
+			paperVertices.sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+		}
+		
+		newMesh.vertices = [...paperVertices];
+		newMesh.faces.push(new Face(paperVertices));
+		newMesh.creases = creases;
+
+		const container = UI.elements.svg.parentElement;
+		const centerX = (container.clientWidth / 2);
+		const centerY = (container.clientHeight / 2);
+		const modelCenterX = size / 2;
+		const modelCenterY = size / 2;
+		const dx = centerX - modelCenterX;
+		const dy = centerY - modelCenterY;
+
+		newMesh.vertices.forEach(v => {
+			v.x += dx;
+			v.y += dy;
+		});
+		newMesh.creases.forEach(c => {
+			c.p1.x += dx; c.p1.y += dy;
+			c.p2.x += dx; c.p2.y += dy;
+		});
+
+		return newMesh;
 	},
 };
 
