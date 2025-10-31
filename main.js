@@ -972,6 +972,8 @@ const UI = {
 			toggleInfoPanelButton: document.getElementById('toggle-toolbar-right'),
 			resizerLeft: document.getElementById('resizer-left'),
 			resizerRight: document.getElementById('resizer-right'),
+			welcomeModalOverlay: document.getElementById('welcome-modal-overlay'),
+			welcomeModalClose: document.getElementById('welcome-modal-close'),
 		};
 		
 		this.elements.svg.addEventListener('click', (e) => controller.handleSVGClick(e));
@@ -1012,6 +1014,13 @@ const UI = {
 		this.elements.toggleInfoPanelButton.addEventListener('click', () => controller.toggleInfoPanel());
 		this.elements.resizerLeft.addEventListener('mousedown', (e) => controller.handleResizeStart(e, 'left'));
 		this.elements.resizerRight.addEventListener('mousedown', (e) => controller.handleResizeStart(e, 'right'));
+
+		this.elements.welcomeModalClose.addEventListener('click', () => controller.hideWelcomeModal());
+		this.elements.welcomeModalOverlay.addEventListener('click', (e) => {
+			if (e.target === this.elements.welcomeModalOverlay) {
+				controller.hideWelcomeModal();
+			}
+		});
 	},
 	
 	render(state) {
@@ -1436,6 +1445,13 @@ const UI = {
 const AppController = {
 	init() {
 		UI.init(this);
+
+		if (this.getCookie('origamiWelcomeShown')) {
+			UI.elements.welcomeModalOverlay.style.display = 'none';
+		} else {
+			UI.elements.welcomeModalOverlay.classList.remove('hidden');
+		}
+
 		if (!this.loadStateFromLocalStorage()) {
 			AppState.init();
 			if (window.innerWidth <= 800) {
@@ -1463,6 +1479,11 @@ const AppController = {
 		const point = isTouchEvent ? event.touches[0] : event;
 		AppState.panStartPoint = { x: point.clientX, y: point.clientY };
 		AppState.dragOccurred = false;
+	},
+
+	hideWelcomeModal() {
+		UI.elements.welcomeModalOverlay.style.display = 'none';
+		this.setCookie('origamiWelcomeShown', 'true', 365);
 	},
 
 	handlePanMove(event) {
@@ -2510,6 +2531,27 @@ const AppController = {
 		});
 
 		return newMesh;
+	},
+
+	setCookie(name, value, days) {
+		let expires = "";
+		if (days) {
+			const date = new Date();
+			date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+			expires = "; expires=" + date.toUTCString();
+		}
+		document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+	},
+
+	getCookie(name) {
+		const nameEQ = name + "=";
+		const ca = document.cookie.split(';');
+		for(let i = 0; i < ca.length; i++) {
+			let c = ca[i];
+			while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+			if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+		}
+		return null;
 	},
 };
 

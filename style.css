@@ -86,10 +86,6 @@
 	box-sizing: border-box;
 }
 
-.hidden {
-	display: none;
-}
-
 body {
 	font-family: var(--font-family-monospace);
 	background-color: var(--color-background-app);
@@ -612,4 +608,47 @@ svg .selection-label {
 #page-footer a:hover {
 	color: var(--color-brand-primary);
 	text-decoration: underline;
+}
+
+#welcome-modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.7);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	padding: var(--spacing-base);
+}
+
+#welcome-modal {
+	background-color: var(--color-background-panel);
+	padding: calc(var(--spacing-base) * 2);
+	border-radius: var(--border-radius-small);
+	border: 1px solid var(--color-border-primary);
+	max-width: 500px;
+	text-align: center;
+	line-height: 1.6;
+}
+
+#welcome-modal h3 {
+	margin-top: 0;
+	color: var(--color-highlight);
+}
+
+#welcome-modal p {
+	margin-bottom: var(--spacing-base);
+	color: var(--color-text-secondary);
+}
+
+#welcome-modal button {
+	width: auto;
+	min-width: 120px;
+}
+
+.hidden {
+	display: none;
 }

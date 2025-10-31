@@ -116,6 +116,10 @@ export const translations = {
 		addPointToolDesc: "Ajoute un nouveau point de construction sur le papier.<br><strong>Astuce :</strong> Maintenez la touche SHIFT enfoncée pour désactiver temporairement le magnétisme.",
 		addPointToolPrompt1: "Cliquez sur la feuille pour ajouter un point.",
 		
+		welcomeModalTitle: "Bienvenue sur l'Origami Lab !",
+		welcomeModalText: "Ce site est actuellement en cours de développement. De nombreuses fonctionnalités sont expérimentales et vous pourriez rencontrer des bugs. Par exemple, certains plis complexes peuvent ne pas fonctionner comme prévu, entraînant des 'déchirures' visuelles du papier. Merci de votre compréhension et bonne exploration !",
+		welcomeModalButton: "Compris !",
+		
 		footerText: '&copy; 2025. Tous droits réservés. Conçu par <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>Voir plus de projets sur <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. Ce projet est sous licence MIT.',
 		renameStep: "Renommer l'étape",
 	},
@@ -235,6 +239,10 @@ export const translations = {
 		addPointToolName: "Add Point Tool",
 		addPointToolDesc: "Adds a new construction point to the paper.<br><strong>Tip:</strong> Hold down the SHIFT key to temporarily disable snapping.",
 		addPointToolPrompt1: "Click on the paper to add a point.",
+		
+		welcomeModalTitle: "Welcome to the Origami Lab!",
+		welcomeModalText: "This site is currently under development. Many features are experimental, and you may encounter bugs. For example, some complex folds may not work as expected, resulting in visual 'tearing' of the paper. Thank you for your understanding and happy folding!",
+		welcomeModalButton: "Got it!",
 		
 		footerText: '&copy; 2025. All rights reserved. Designed by <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>See more projects on <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. This project is under the MIT License.',
 		renameStep: "Rename step",
