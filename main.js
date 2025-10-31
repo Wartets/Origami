@@ -840,7 +840,7 @@ const AppState = {
 	historyIndex: -1,
 	selectedVertices: [],
 	isProcessing: false,
-	currentAxiom: 'AXIom_2',
+	currentAxiom: 'AXIOM_2',
 	isXRayMode: false,
 	viewBox: { x: 0, y: 0, width: 0, height: 0 },
 	isPanning: false,
@@ -956,6 +956,9 @@ const UI = {
 			requiredPointsCountEl: document.getElementById('required-points-count'),
 			faceCountEl: document.getElementById('face-count'),
 			vertexCountEl: document.getElementById('vertex-count'),
+			creaseCountEl: document.getElementById('crease-count'),
+			edgeCountEl: document.getElementById('edge-count'),
+			manualPointCountEl: document.getElementById('manual-point-count'),
 			historyListEl: document.getElementById('history-list'),
 			currentToolNameEl: document.getElementById('current-tool-name'),
 			currentToolDescEl: document.getElementById('current-tool-desc'),
@@ -1011,7 +1014,13 @@ const UI = {
 		this.elements.svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
 		this.elements.svg.innerHTML = '';
 		this.elements.svg.classList.toggle('xray-mode', isXRayMode);
-
+		
+		if (currentAxiom === 'AXIOM_6' && axiom6Solutions.length > 0 && selectedVertices.length === AXIOMS[currentAxiom].requiredPoints) {
+			this.elements.svg.classList.add('axiom6-selection-mode');
+		} else {
+			this.elements.svg.classList.remove('axiom6-selection-mode');
+		}
+		
 		const shadowColor = getComputedStyle(document.documentElement).getPropertyValue('--palette-dark-1');
 		const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
 		defs.innerHTML = `
@@ -1333,6 +1342,9 @@ const UI = {
 		this.elements.requiredPointsCountEl.textContent = axiomInfo.requiredPoints;
 		this.elements.faceCountEl.textContent = mesh.faces.length;
 		this.elements.vertexCountEl.textContent = mesh.vertices.length;
+		this.elements.creaseCountEl.textContent = mesh.creases.length;
+		this.elements.edgeCountEl.textContent = uniqueEdges.size;
+		this.elements.manualPointCountEl.textContent = mesh.vertices.filter(v => v.isManual).length;
 		this.elements.currentToolNameEl.textContent = t(axiomInfo.nameKey);
 		
 		const prompt = t(axiomInfo.prompts(selectedVertices));
@@ -1363,7 +1375,22 @@ const UI = {
 		history.slice(1).forEach((histItem, index) => {
 			const li = document.createElement('li');
 			const historyItemIndex = index + 1;
-			li.textContent = `${historyItemIndex}: ${t(histItem.action.key, histItem.action.params)}`;
+
+			const textSpan = document.createElement('span');
+			textSpan.classList.add('history-item-text');
+			const defaultText = `${historyItemIndex}: ${t(histItem.action.key, histItem.action.params)}`;
+			textSpan.textContent = histItem.action.customName ? `${historyItemIndex}: ${histItem.action.customName}` : defaultText;
+			textSpan.title = textSpan.textContent;
+
+			const renameButton = document.createElement('button');
+			renameButton.classList.add('rename-history-button');
+			renameButton.dataset.historyIndex = historyItemIndex;
+			renameButton.title = t('renameStep');
+			renameButton.innerHTML = `<i class="fa-solid fa-pencil"></i>`;
+			
+			li.appendChild(textSpan);
+			li.appendChild(renameButton);
+			
 			li.dataset.historyIndex = historyItemIndex;
 			if (historyItemIndex === historyIndex) {
 				li.classList.add('active');
@@ -1414,6 +1441,7 @@ const AppController = {
 		if (event.button !== 1 || event.target.classList.contains('vertex-handle')) return;
 		event.preventDefault();
 		AppState.isPanning = true;
+		document.body.classList.add('is-panning');
 		AppState.panStartPoint = { x: event.clientX, y: event.clientY };
 		AppState.dragOccurred = false;
 	},
@@ -1564,6 +1592,7 @@ const AppController = {
 			this.handleResizeEnd();
 		}
 		AppState.isPanning = false;
+		document.body.classList.remove('is-panning');
 	},
 
 	handleMouseLeave() {
@@ -1985,6 +2014,16 @@ const AppController = {
 	},
 
 	handleHistoryClick(event) {
+		const renameButton = event.target.closest('.rename-history-button');
+		if (renameButton) {
+			event.stopPropagation();
+			const index = parseInt(renameButton.dataset.historyIndex, 10);
+			if (!isNaN(index)) {
+				this.startRenameHistoryStep(index);
+			}
+			return;
+		}
+
 		const targetLi = event.target.closest('li[data-history-index]');
 		if (!targetLi || AppState.isProcessing) return;
 
@@ -1993,7 +2032,71 @@ const AppController = {
 			this.jumpToHistoryState(index);
 		}
 	},
+	
+	startRenameHistoryStep(index) {
+		const existingInput = UI.elements.historyListEl.querySelector('.history-item-input');
+		if (existingInput) {
+			const oldIndex = parseInt(existingInput.dataset.historyIndex, 10);
+			this.finishRenameHistoryStep(existingInput, oldIndex, false);
+		}
 
+		const li = UI.elements.historyListEl.querySelector(`li[data-history-index="${index}"]`);
+		if (!li) return;
+
+		const textSpan = li.querySelector('.history-item-text');
+		const currentText = AppState.history[index].action.customName || t(AppState.history[index].action.key, AppState.history[index].action.params);
+		
+		const input = document.createElement('input');
+		input.type = 'text';
+		input.value = AppState.history[index].action.customName || '';
+		input.placeholder = currentText.substring(currentText.indexOf(':') + 2);
+		input.classList.add('history-item-input');
+		input.dataset.historyIndex = index;
+		
+		const prefix = document.createElement('span');
+		prefix.textContent = `${index}: `;
+		prefix.style.whiteSpace = 'nowrap';
+		
+		const container = document.createElement('div');
+		container.style.display = 'flex';
+		container.style.alignItems = 'center';
+		container.style.flexGrow = '1';
+		container.appendChild(prefix);
+		container.appendChild(input);
+
+		li.replaceChild(container, textSpan);
+		input.focus();
+		input.select();
+
+		const finishEdit = (save) => {
+			this.finishRenameHistoryStep(input, index, save);
+		};
+
+		input.addEventListener('blur', () => finishEdit(true));
+		input.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				finishEdit(true);
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				finishEdit(false);
+			}
+		});
+	},
+
+	finishRenameHistoryStep(inputElement, index, save) {
+		if (save) {
+			const newName = inputElement.value.trim();
+			if (newName) {
+				AppState.history[index].action.customName = newName;
+			} else {
+				delete AppState.history[index].action.customName;
+			}
+			this.saveStateToLocalStorage();
+		}
+		UI.render(AppState);
+	},
+	
 	jumpToHistoryState(index) {
 		if (AppState.isProcessing || index < 0 || index >= AppState.history.length) return;
 
@@ -2031,13 +2134,9 @@ const AppController = {
 	handleResizeMove(event) {
 		if (!AppState.activeResizer) return;
 		
-		console.group(`Resize Move: ${AppState.activeResizer}`);
-		
 		const MIN_PANEL_WIDTH = 150;
 		const windowWidth = window.innerWidth;
-		const minCanvasWidth = windowWidth * 0.6;
-
-		console.log(`Window Width (F): ${windowWidth}px, Min Canvas Width (C_min): ${minCanvasWidth.toFixed(2)}px`);
+		const minCanvasWidth = windowWidth * 0.65;
 
 		if (AppState.activeResizer === 'left') {
 			const rightPanelWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--layout-panel-width')) || 0;
@@ -2045,13 +2144,7 @@ const AppController = {
 			const desiredWidth = event.clientX;
 			
 			const effectiveMinWidth = Math.min(MIN_PANEL_WIDTH, Math.max(0, maxLeftPanelWidth));
-			const clampedWidth = Math.max(effectiveMinWidth, Math.min(desiredWidth, maxLeftPanelWidth));
-
-			console.log(`Right Panel (D): ${rightPanelWidth.toFixed(2)}px`);
-			console.log(`Max Left Panel Width (G_max = F-D-C_min): ${maxLeftPanelWidth.toFixed(2)}px`);
-			console.log(`Desired Left Width (Mouse X): ${desiredWidth}px`);
-			console.log(`Effective Min Width: ${effectiveMinWidth.toFixed(2)}px`);
-			console.log(`--- FINAL Clamped Left Width: ${clampedWidth.toFixed(2)}px ---`);
+			const clampedWidth = Math.max(effectiveMinWidth, Math.max(Math.min(desiredWidth, maxLeftPanelWidth)), MIN_PANEL_WIDTH);
 			
 			document.documentElement.style.setProperty('--layout-toolbar-width', `${clampedWidth}px`);
 
@@ -2061,13 +2154,7 @@ const AppController = {
 			const desiredWidth = windowWidth - event.clientX;
 
 			const effectiveMinWidth = Math.min(MIN_PANEL_WIDTH, Math.max(0, maxRightPanelWidth));
-			const clampedWidth = Math.max(effectiveMinWidth, Math.min(desiredWidth, maxRightPanelWidth));
-
-			console.log(`Left Panel (G): ${leftPanelWidth.toFixed(2)}px`);
-			console.log(`Max Right Panel Width (D_max = F-G-C_min): ${maxRightPanelWidth.toFixed(2)}px`);
-			console.log(`Desired Right Width (F - Mouse X): ${desiredWidth.toFixed(2)}px`);
-			console.log(`Effective Min Width: ${effectiveMinWidth.toFixed(2)}px`);
-			console.log(`--- FINAL Clamped Right Width: ${clampedWidth.toFixed(2)}px ---`);
+			const clampedWidth = Math.max(effectiveMinWidth, Math.max(Math.min(desiredWidth, maxRightPanelWidth)), MIN_PANEL_WIDTH);
 
 			document.documentElement.style.setProperty('--layout-panel-width', `${clampedWidth}px`);
 		}
@@ -2131,7 +2218,10 @@ const AppController = {
 			}));
 			AppState.historyIndex = savedState.historyIndex;
 			AppState.mesh = cloneMesh(AppState.history[AppState.historyIndex].mesh);
-			AppState.currentAxiom = savedState.currentAxiom || 'AXIOM_2';
+			
+			const loadedAxiom = savedState.currentAxiom;
+			AppState.currentAxiom = (loadedAxiom && AXIOMS[loadedAxiom]) ? loadedAxiom : 'AXIOM_2';
+
 			AppState.isXRayMode = savedState.isXRayMode || false;
 			AppState.viewBox = savedState.viewBox;
 			AppState.currentLanguage = savedState.currentLanguage || 'en';

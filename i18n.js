@@ -27,6 +27,9 @@ export const translations = {
 		modelStats: "Statistiques du Modèle",
 		facesLabel: "Faces",
 		verticesLabel: "Sommets",
+		creasesLabel: "Plis",
+		edgesLabel: "Arêtes",
+		manualPointsLabel: "Points Manuels",
 		cursorLabel: "Curseur",
 		historyHeader: "Historique",
 		instructionLabel: "Instruction",
@@ -110,6 +113,7 @@ export const translations = {
 		addPointToolPrompt1: "Cliquez sur la feuille pour ajouter un point.",
 		
 		footerText: '&copy; 2025. Tous droits réservés. Conçu par <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>Voir plus de projets sur <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. Ce projet est sous licence MIT.',
+		renameStep: "Renommer l'étape",
 	},
 	en: {
 		toolHeader: "Folding Tools",
@@ -139,6 +143,9 @@ export const translations = {
 		modelStats: "Model Statistics",
 		facesLabel: "Faces",
 		verticesLabel: "Vertices",
+		creasesLabel: "Creases",
+		edgesLabel: "Edges",
+		manualPointsLabel: "Manual Points",
 		cursorLabel: "Cursor",
 		historyHeader: "History",
 		instructionLabel: "Instruction",
@@ -222,5 +229,6 @@ export const translations = {
 		addPointToolPrompt1: "Click on the paper to add a point.",
 		
 		footerText: '&copy; 2025. All rights reserved. Designed by <a href="https://wartets.github.io/Wartets/" target="_blank">&#x2197;Wartets</a>. <wbr>See more projects on <a href="https://github.com/wartets" target="_blank">&#x2197;GitHub</a>. This project is under the MIT License.',
+		renameStep: "Rename step",
 	}
 };

@@ -108,6 +108,10 @@ body.is-resizing #origami-svg {
 	cursor: col-resize;
 }
 
+body.is-panning #origami-svg {
+	cursor: grabbing;
+}
+
 body.left-panel-collapsed {
 	grid-template-columns: var(--collapsed-panel-width) 1fr var(--layout-panel-width);
 }
@@ -331,6 +335,48 @@ button:disabled {
 	color: var(--color-text-on-brand);
 }
 
+#history-list li {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: var(--spacing-gap-component);
+}
+
+.history-item-text {
+	flex-grow: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.rename-history-button {
+	background: none;
+	border: none;
+	color: var(--color-text-secondary);
+	padding: var(--spacing-extra-small);
+	margin: calc(-1 * var(--spacing-extra-small));
+	width: auto;
+	line-height: 1;
+	flex-shrink: 0;
+}
+
+.rename-history-button:hover {
+	color: var(--palette-blue-primary-hover);
+	background: none;
+}
+
+.history-item-input {
+	flex-grow: 1;
+	background-color: var(--color-background-app);
+	color: var(--color-text-primary);
+	border: 1px solid var(--color-brand-primary);
+	border-radius: var(--border-radius-small);
+	padding: 2px 4px;
+	font-family: inherit;
+	font-size: inherit;
+	width: 100%;
+}
+
 .left-panel-collapsed #toolbar-left > *:not(.panel-toggle-button),
 .right-panel-collapsed #toolbar-right > *:not(.panel-toggle-button) {
 	opacity: 0;
@@ -360,6 +406,11 @@ button:disabled {
 	display: block;
 	width: 100%;
 	height: 100%;
+	cursor: crosshair;
+}
+
+svg.axiom6-selection-mode {
+	cursor: pointer;
 }
 
 svg polygon {
